@@ -1073,7 +1073,7 @@ void help()
 	cout << "*\t\trmuser			删除用户		*" << endl; // 已实现
 	cout << "*\t\tshowuser		显示用户		*" << endl;		// 已实现
 	cout << "*\t\tlogin			登录系统		*" << endl;		// 已实现
-	cout << "*\t\tls		    	显示目录		*" << endl; // 已实现
+	cout << "*\t\tll		    	显示目录		*" << endl; // 已实现
 	cout << "*\t\tcreate			创建文件		*" << endl; // 创建空文件写好了
 	cout << "*\t\trename			重命文件		*" << endl; // 已实现
 	cout << "*\t\topen			打开文件		*" << endl;		// 已实现
@@ -1666,12 +1666,21 @@ void close()
 	{
 		string FileName;
 		AFD *p = AFD_Link;
+		FCB *r = FCB_Link->next;
 		cout << "请输入要关闭的文件名：";
 		cin >> FileName;
 		while (p->next)
 		{
 			if (p->next->FileName == FileName)
 			{
+				while(r)
+				{
+					if(r->fileName == FileName && r->username == UserName)
+					{
+						break;
+					}
+					r = r->next; // r就是要关闭文件的FCB
+				}
 				AFD *q = p->next;
 				p->next = q->next;
 				delete q;
