@@ -1,0 +1,1488 @@
+#include <iostream>
+using namespace std;
+#include <math.h>
+#include <string>
+#include <vector>
+#include <fstream>
+#include <bitset>
+#include <string>
+#include <valarray>
+#include <Windows.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <conio.h>
+
+#define FILEAREASIZE 900 // 文件区磁盘块数量 
+#define SWAPAREASIZE 124 // 交换区磁盘块数量
+#define BLOCKSIZE 320 // 磁盘块大小320bit
+#define BLOCKADDRCOUNT 32 // 一个磁盘块最多可以容纳32个物理块号
+#define ADDRSIZE 10 // 一个物理块号占用10bit
+#define MIXFILE 32*32*40 // 最大文件大小 32*32*40B
+#define MAXFILE 32*32*40 // 最大文件大小 32*32*40B
+bool bitMap[30][30]; // 位示图
+int strb[MAXFILE * 8] = { 0 };
+
+typedef struct FCB {
+	string username;   // 用户名 
+	string fileName;   // 文件名
+	int fileSize;      // 文件大小
+	bool fileNature;   // 文件属性 0 只读 1 可读可写
+	string createTime; // 文件创建时间
+	int fileStartAddr; // 文件起始地址
+	int fileIndexAddr; // 文件索引地址
+	FCB *next;
+}FCB, *FCBptr;
+
+struct SwapReadData {
+	FCB fcb;
+	int blockIndex[FILEAREASIZE]; // 物理块号
+	int fileData[32][BLOCKSIZE]; // 文件信息 二进制
+	string fileContent; // 文件内容
+};
+struct SwapWriteData {
+	FCB fcb;
+	bool IsputDown; // 判断文件所需磁盘块是否超出了空闲磁盘块的数量 0 未超出 1 超出
+};
+
+struct BLOCK {
+	bool data[BLOCKSIZE]{};
+	bool flag = 0;
+};
+BLOCK file_data[FILEAREASIZE];//文件区
+struct SWAP {
+	int fileStartAddr = -1; // 所属文件的起始物理块号 同一个文件一样
+	bool addr[10]{}; // 对换区与文件区物理块号映射
+	bool data[BLOCKSIZE]{}; // 数据
+	bool flag = 0; // 是否空闲 flag = 1 不空闲
+	bool IsInFileArea = 0; // 是否写入文件区 0 代表未写入或者被修改 1 代表在文件区并且数据一致
+};
+SWAP swap_data[SWAPAREASIZE];//对换区
+struct FileInformation {
+	int indexBlock; // 索引块号
+	int fileStartAddr; // 文件起始物理块号
+};
+struct SwapInformation {
+	int startAddr;
+	int count;
+};
+
+int UserId[20] = {0};
+// typedef struct UFD
+// {
+// 	string 		FileName;
+// 	string 		Creator;
+// 	string 		time;
+// 	int    		Addr=0;
+// 	bool   		mode; // false:只读    true：可读可写
+// 	int    		FileLength=0;
+// 	struct UFD *next;
+// } UFD, *UFDptr;
+typedef struct MFD
+{
+	string UserName;
+	string Password;
+	// UFD *NextUfd;
+	int id;
+	struct MFD *next;
+} MFD, *MFDptr;
+typedef struct AFD
+{
+	string FileName;
+	int FileLength;
+	int Start;
+	int mode;
+	struct AFD *next;
+} AFD, *AFDptr;
+
+MFDptr MFD_Link = NULL;
+// UFDptr UFD_Link = NULL;
+FCBptr FCB_Link = NULL;;
+AFDptr AFD_Link = NULL;
+string UserName; // 存放当前用户的用户名
+
+
+
+
+// 为索引(磁盘)表项赋值物理块号
+int indexBlockAssignment(int index, int n);
+// 为磁盘块赋值 每320bit
+void dataBlockAssignment(int idx, int n, int SwapAddr);
+// 十进制转换为二进制
+vector<int> decimalismToBinary(int num_d);
+// 删除交换区中的一个文件
+void deleteSwapAreaFile();
+// 字符串转换为二进制
+string strToBinary(string& str);
+// 二进制转换为字符串
+string binaryToStr(string str_b);
+// 输出位示图 
+void printBitMap();
+// 获取空闲磁盘块数量
+int freeAreaCount();
+// 位示图法获取一个空闲磁盘块的物理块号 不连续分配
+int freeAreaIndex();
+// 获取连续的空闲交换区磁盘块起始块号和数量
+SwapInformation SwapAreaCount(int amount);
+// 删除交换区的一个文件占用的全部磁盘块
+void deleteSwapAreaFile();
+// 交换区写入数据 仅第一次空文件写入数据时调用
+SwapWriteData putfileData(FCB fcb, string str);
+// 文件区写入数据并建立二级索引
+FileInformation secondaryIndex(int fileIndexAddr, int amount, int startAddr);
+// 交换区读出数据
+SwapReadData getfileData(FCB fcb);
+// 删除指定文件数据
+void deletefileData(int firstStartAddr, int indexBlock);
+// 格式化
+void format();
+// 修改文件
+SwapWriteData amendFile(FCB fcb, string fileContent);
+// 创建一个空文件
+int createFreeFile();
+
+/*
+创建空文件并写入数据
+1. 创建空文件 调用 createFreeFile();
+2. 写入数据   调用 putfileData(FCB fcb, string str);
+*/
+
+/*
+只读文件操作流程：
+1. 将文件调入内存 调用 getfileData(FCB fcb);
+2. 线程操作结束后 直接释放内存 无需再写入外存
+*/
+
+/*
+修改(可读可写)文件操作流程
+1. 将文件调入内存 调用 getfileData(FCB fcb);
+2. 在内存中执行写操作
+3. 线程操作结束   调用 amendFile(FCB fcb, string fileContent);
+*/
+
+/*
+注意：putfileData 和 amendFile 函数返回值中都有一个 swd.IsPutDown参数
+     该参数说明了文件区是否还有足够的空闲块用于写入数据或者写入修改后的数据
+	 swd.IsputDown == 1 说明空闲区不够 此时函数直接结束 需要写入的数据或者修改后的数据并不会写入外存
+	 swd.IsputDown == 0 说明空闲区足够
+*/
+
+
+// 字符串转换为二进制
+string strToBinary(string& str) {
+	string binary_string;
+	for (auto i : str)
+	{
+		bitset<8> bs(i);
+		binary_string += bs.to_string();
+	}
+	return binary_string;
+}
+// 二进制转换为字符串
+string binaryToStr(string str_b)
+{
+	// 每八位转化成十进制，然后将数字结果转化成字符
+	string str;
+	int sum;
+	for (int i = 0; i < str_b.size(); i += 8)
+	{
+		sum = 0;
+		for (int j = 0; j < 8; j++)
+			if (str_b[i + j] == '1')
+				sum = sum * 2 + 1;
+			else
+				sum = sum * 2;
+		str += char(sum);
+	}
+	return str;
+}
+// 输出位示图
+void printBitMap() {
+	for (int i = 0; i < 30; i++) {
+		for (int j = 0; j < 30; j++) {
+			std::cout << bitMap[i][j] << " ";
+		}
+		std::cout << endl;
+	}
+}
+
+// 获取空闲磁盘块数量
+int freeAreaCount() {
+	int count = 0;
+	for (int i = 0; i < 30; i++) {
+		for (int j = 0; j < 30; j++) {
+			if (bitMap[i][j] == 1) continue;
+			else count++;
+		}
+	}
+	return count;
+}
+
+// 位示图法获取一个空闲磁盘块的物理块号 不连续分配
+int freeAreaIndex() {
+	int idx = -1;
+	for (int i = 0; i < 30; i++) {
+		for (int j = 0; j < 30; j++) {
+			idx = (i * 30) + j;
+			if (bitMap[i][j] == 0) return idx;
+		}
+	}
+	return idx;
+}
+
+// 文件区写入数据并建立二级索引
+FileInformation secondaryIndex(int fileIndexAddr,int amount,int startAddr) {
+	FileInformation fi;
+	int idx_index = -1,  // 索引块号
+		idx_first = -1,  // 一级索引块号
+		idx_second = -1; // 二级索引块号
+	int secondIndexBlockCount = -1; // 用于存储物理块号的索引块数目(一级索引块固定一个，所以只统计二级索引块)
+	int total = 0; // 所需磁盘块数量
+	int swapAddr = startAddr; // 交换区地址
+	
+	if (amount % BLOCKADDRCOUNT == 0) secondIndexBlockCount = amount / BLOCKADDRCOUNT;
+	else secondIndexBlockCount = amount / BLOCKADDRCOUNT + 1;
+	idx_index = fileIndexAddr;
+	fi.indexBlock = idx_index; // 索引块号
+
+	for (int i = 0; i < secondIndexBlockCount; i++) {
+		idx_first = indexBlockAssignment(idx_index, i);
+		if (amount % BLOCKADDRCOUNT != 0 && i + 1 == secondIndexBlockCount) {
+			for (int j = 0; j < amount % BLOCKADDRCOUNT; j++) {
+				idx_second = indexBlockAssignment(idx_first, j);
+				if (total == 0) fi.fileStartAddr = idx_second;
+				vector<int> idx_b = decimalismToBinary(idx_second);
+				int p = 0;
+				for (int item : idx_b) {
+					swap_data[swapAddr].addr[p++] = item;
+				}
+				dataBlockAssignment(idx_second, j, swapAddr);
+				total++; swapAddr++;
+			}
+		}
+		else {
+			for (int j = 0; j < BLOCKADDRCOUNT; j++) {
+				idx_second = indexBlockAssignment(idx_first, j);
+				if (total == 0) fi.fileStartAddr = idx_second;
+				vector<int> idx_b = decimalismToBinary(idx_second);
+				int p = 0;
+				for (int item : idx_b) {
+					swap_data[swapAddr].addr[p++] = item;
+				}
+				dataBlockAssignment(idx_second, j, swapAddr);
+				total++; swapAddr++;
+			}
+		}
+		
+	}
+	return fi;
+}
+// 十进制转换为二进制
+vector<int> decimalismToBinary(int num_d) {
+	int temp;
+	vector<int> num_b;
+	do {
+		temp = num_d % 2;
+		num_d = num_d / 2;
+		num_b.push_back(temp);
+	} while (num_d != 0);
+	return num_b;
+}
+// 为索引(磁盘)表项赋值物理块号
+int indexBlockAssignment(int index,int n) {
+	// 标明该磁盘块不空闲
+	if (file_data[index].flag == 0) {
+		file_data[index].flag = 1;
+		int row = index / 30;
+		int col = index % 30;
+		bitMap[row][col] = 1;
+	}
+	int idx;
+	idx = freeAreaIndex();
+	vector<int> idx_b = decimalismToBinary(idx);
+	int i = n * 10;
+	for (int item : idx_b) {
+		file_data[index].data[i++] = item;
+	}
+	return idx;
+}
+// 为磁盘块赋值 每320bit
+void dataBlockAssignment(int idx,int n,int SwapAddr) {
+	
+	if (file_data[idx].flag == 0) {
+		file_data[idx].flag = 1;
+		int row = idx / 30;
+		int col = idx % 30;
+		bitMap[row][col] = 1;
+	}
+	for (int i = 0; i < BLOCKSIZE; i++) {
+		file_data[idx].data[i] = strb[BLOCKSIZE * n + i];
+		swap_data[SwapAddr].data[i] = strb[BLOCKSIZE * n + i];
+	}
+}
+
+// 获取连续的空闲交换区磁盘块起始块号和数量
+SwapInformation SwapAreaCount(int amount) {
+	SwapInformation si;
+	int count = 0;
+	int startAddr = 0;
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		if (swap_data[i].flag == 1) {
+			count = 0;
+			startAddr = i + 1;
+		}
+		else count++;
+		if (count == amount) break;
+	}
+	if (count < amount) {
+		deleteSwapAreaFile();
+		SwapAreaCount(amount);
+	}
+	si.startAddr = startAddr;
+	si.count = count;
+	return si;
+}
+// 删除交换区的一个文件占用的全部磁盘块
+void deleteSwapAreaFile() {
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		if (swap_data[i].flag == 1) {
+			int fileStartAddr = swap_data[i].fileStartAddr;
+			int p = i;
+			while (swap_data[p].fileStartAddr == fileStartAddr) {
+				swap_data[p].fileStartAddr = -1;
+				swap_data[p].flag = 0;
+				swap_data[p].IsInFileArea = 0;
+				for (int j = 0; j < ADDRSIZE; j++) {
+					swap_data[p].addr[j] = 0;
+				}
+				for (int j = 0; j < BLOCKSIZE; j++) {
+					swap_data[p].data[j] = 0;
+				}
+				p++;
+			}
+			break;
+		}
+	}
+}
+// 删除交换区指定文件占用的全部磁盘块
+void deleteAppointSwapAreaFile(int fileStartAddr) {
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		if (swap_data[i].fileStartAddr == fileStartAddr) {
+			int p = i;
+			while (swap_data[p].fileStartAddr == fileStartAddr) {
+				swap_data[p].fileStartAddr = -1;
+				swap_data[p].flag = 0;
+				swap_data[p].IsInFileArea = 0;
+				for (int j = 0; j < ADDRSIZE; j++) {
+					swap_data[p].addr[j] = 0;
+				}
+				for (int j = 0; j < BLOCKSIZE; j++) {
+					swap_data[p].data[j] = 0;
+				}
+				p++;
+			}
+			return;
+		}
+	}
+}
+// 交换区写入数据
+SwapWriteData putfileData(FCB fcb,string str) {
+	SwapWriteData swd;
+	swd.fcb = fcb;
+	int amount; // 文件占用磁盘数目
+	string str_b = strToBinary(str);
+	for (int i = 0; i < str_b.size(); i++) {
+		strb[i] = str_b[i]-'0';
+		
+	}
+	if (str_b.size() % BLOCKSIZE == 0) amount = str_b.size() / BLOCKSIZE;
+	else amount = str_b.size() / BLOCKSIZE + 1;
+
+	int fileSize = str_b.size() / 8;
+	
+	swd.fcb.fileSize = fileSize;
+	swd.fcb.fileStartAddr = -1;
+	swd.fcb.fileIndexAddr = -1;
+	int freeBlockCount = freeAreaCount(); // 空闲磁盘块数量
+	int indexBlockCount = -1; // 所需索引块数目
+	
+	if (amount % BLOCKADDRCOUNT == 0) indexBlockCount = amount / BLOCKADDRCOUNT + 1;
+	else indexBlockCount = amount / BLOCKADDRCOUNT + 2;
+	// 判断所需磁盘数是否超出空闲磁盘数
+	if (freeBlockCount < indexBlockCount + amount) swd.IsputDown = 1;
+	else swd.IsputDown = 0;
+	
+	if (fileSize > MIXFILE) return swd;
+
+	/*
+    四种情况:
+    1. fi.filesize <= 32*32*40 &  fi.IsputDown = 0 文件大小正常且空闲磁盘块数量够
+    2. fi.filesize > 32*32*40 &  fi.IsputDown = 0 文件过大,但空闲磁盘块数量够
+    3. fi.filesize <= 32*32*40 &  fi.IsputDown = 1 文件大小正常,但空闲磁盘块数量不够
+    4. fi.filesize > 32*32*40 &  fi.IsputDown = 1 文件过大且空闲磁盘块数量不够
+    */
+	// 文件起始物理块号为-1代表这个文件已经创建但是还没有内容
+	SwapInformation si = SwapAreaCount(amount);
+	int startAddr = si.startAddr;
+	FileInformation fi = secondaryIndex(fcb.fileIndexAddr, amount, startAddr);
+	swd.fcb.fileStartAddr = fi.fileStartAddr;
+	swd.fcb.fileIndexAddr = fi.indexBlock;
+	
+	for (int i = startAddr; i < startAddr + amount; i++) {
+		swap_data[i].IsInFileArea = 1;
+		swap_data[i].flag = 1;
+		swap_data[i].fileStartAddr = fi.fileStartAddr;
+	}
+	return swd;
+}
+
+// 交换区读出数据
+SwapReadData getfileData(FCB fcb) {
+	SwapReadData srd;
+	srd.fcb = fcb;
+	int amount;
+	if (fcb.fileSize % (BLOCKSIZE / 8) == 0) amount = fcb.fileSize / (BLOCKSIZE / 8);
+	else amount = fcb.fileSize / (BLOCKSIZE / 8) + 1;
+	// 如果交换区存在该文件数据
+	int y = 0;
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		if (swap_data[i].fileStartAddr == fcb.fileStartAddr) {
+			string str = "";
+			int idx = 0;
+			for (int j = i; j < i + amount; j++) {
+				idx = 0;
+				for (int k = 0; k < ADDRSIZE; k++) {			
+					idx += pow(2, k) * swap_data[j].addr[k];
+				}
+				srd.blockIndex[y] = idx;
+				for (int k = 0; k < BLOCKSIZE; k++) {
+					srd.fileData[y][k] = swap_data[j].data[k];
+					str += std::to_string(swap_data[j].data[k]);
+				}
+				y++;
+			}
+			srd.fileContent = binaryToStr(str);
+			return srd;
+		}
+	}
+	// 以下为交换区不存在文件数据
+	vector<int> idxs;
+	// 获取全部二级索引块存放的物理块号
+	for (int i = 0; i < BLOCKADDRCOUNT; i++) {
+		int idx_first = 0;
+		for (int j = i * 10; j < i * 10 + 10; j++) {
+			idx_first += pow(2, j % 10) * file_data[fcb.fileIndexAddr].data[j];
+		}
+		if (idx_first == 0) break;
+		for (int n = 0; n < BLOCKADDRCOUNT; n++) {
+			int idx_second = 0;
+			for (int m = n * 10; m < n * 10 + 10; m++) {
+				idx_second += pow(2, m % 10) * file_data[idx_first].data[m];
+			}
+			if (idx_second == 0) break;
+			idxs.push_back(idx_second);
+		}
+	}
+	string fileData = "";
+	SwapInformation si = SwapAreaCount(amount);
+	int startAddr = si.startAddr, count = si.count;
+	int swapAddr = startAddr; // 交换区物理块号
+	for (int i = startAddr; i < startAddr + count; i++) {
+		swap_data[i].fileStartAddr = fcb.fileStartAddr;
+		swap_data[i].IsInFileArea = 1;
+		swap_data[i].flag = 1;
+	}
+	int x = 0;
+	for (int idx : idxs) {
+		for (int i = 0; i < BLOCKSIZE; i++) {
+			swap_data[swapAddr].data[i] = file_data[idx].data[i];
+		}
+		int p = 0;
+		vector<int> idx_b = decimalismToBinary(idx);
+		for (int item : idx_b) {
+			swap_data[swapAddr].addr[p++] = item;
+		}
+		swapAddr++;
+		srd.blockIndex[x++] = idx;
+	}
+	x = 0;
+	for (int i = startAddr; i < startAddr + count; i++) {
+		for (int j = 0; j < BLOCKSIZE; j++) {
+			srd.fileData[x][j] = swap_data[i].data[j];
+			fileData += std::to_string(swap_data[i].data[j]);
+		}
+		x++;
+	}
+	srd.fileContent = binaryToStr(fileData);
+	return srd;
+}
+
+// 删除指定文件数据
+void deletefileData(int firstStartAddr,int indexBlock) {
+	// 删除交换区数据
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		if (swap_data[i].fileStartAddr == firstStartAddr) {
+			swap_data[i].fileStartAddr = -1;
+			swap_data[i].flag = 0;
+			swap_data[i].IsInFileArea = 0;
+			for (int j = 0; j < 10; j++) {
+				swap_data[i].addr[j] = 0;
+			}
+			for (int j = 0; j < BLOCKSIZE; j++) {
+				swap_data[i].data[j] = 0;
+			}
+		}
+	}
+	vector<int> idxs;
+	idxs.push_back(indexBlock);
+	for (int i = 0; i < BLOCKADDRCOUNT; i++) {
+		int idx = 0;
+		for (int j = i * 10; j < i * 10 + 10; j++) {
+			idx += pow(2, j % 10) * file_data[indexBlock].data[j];
+		}
+		if (idx == 0) break;
+		idxs.push_back(idx);
+		for (int n = 0; n < BLOCKADDRCOUNT; n++) {
+			int idx2 = 0;
+			for (int m = n * 10; m < n * 10 + 10; m++) {
+				idx2 += pow(2, m % 10) * file_data[idx].data[m];
+			}
+			if (idx2 == 0) break;
+			idxs.push_back(idx2);
+		}
+	}
+	// 删除文件区数据
+	for (int idx : idxs) {
+		file_data[idx].flag = 0;
+		for (int i = 0; i < BLOCKSIZE; i++) {
+			file_data[idx].data[i] = 0;
+		}
+	}
+	// 删除位示图占用情况
+	for (int idx : idxs) {
+		int row = idx / 30;
+		int col = idx % 30;
+		bitMap[row][col] = 0;
+	}
+}
+// 创建一个空文件
+int createFreeFile() {
+	int idx_index = freeAreaIndex();
+	file_data[idx_index].flag = 1;
+	int row = idx_index / 30;
+	int col = idx_index % 30;
+	bitMap[row][col] = 1;
+	return idx_index;
+}
+
+int fileBlockCount(int indexBlock) {
+	int count = 0;
+	for (int i = 0; i < BLOCKADDRCOUNT; i++) {
+		int idx = 0;
+		for (int j = i * 10; j < i * 10 + 10; j++) {
+			idx += pow(2, j % 10) * file_data[indexBlock].data[j];
+		}
+		if (idx == 0) break;
+		
+		for (int n = 0; n < BLOCKADDRCOUNT; n++) {
+			int idx2 = 0;
+			for (int m = n * 10; m < n * 10 + 10; m++) {
+				idx2 += pow(2, m % 10) * file_data[idx].data[m];
+			}
+			if (idx2 == 0) break;
+			count++;
+		}
+	}
+	return count;
+}
+
+SwapWriteData amendFile(FCB fcb,string fileContent) {
+	SwapWriteData swd;
+	swd.fcb = fcb;
+	string str_b = strToBinary(fileContent);
+	for (int i = 0; i < MAXFILE * 8; i++) strb[i] = 0;
+	for (int i = 0; i < str_b.size(); i++) {
+		strb[i] = str_b[i] - '0';
+	}
+	int count = 0;
+	int indexBlockCountNow = 0;
+	int indexBlockCountAgo = 0;
+	int amountNow = 0; // 修改后的文件占用磁盘块数
+	int amountAgo = fileBlockCount(fcb.fileIndexAddr); // 获取未修改前的占用磁盘数
+	if (str_b.size() % BLOCKSIZE == 0) amountNow = str_b.size() / BLOCKSIZE;
+	else amountNow = str_b.size() / BLOCKSIZE + 1;
+	if (amountNow % BLOCKADDRCOUNT == 0) indexBlockCountNow = amountNow / BLOCKADDRCOUNT + 1;
+	else indexBlockCountNow = amountNow / BLOCKADDRCOUNT + 2;
+	if (amountAgo % BLOCKADDRCOUNT == 0) indexBlockCountAgo = amountAgo / BLOCKADDRCOUNT + 1;
+	else indexBlockCountAgo = amountAgo / BLOCKADDRCOUNT + 2;
+
+	if (amountNow > amountAgo && (amountNow - amountAgo + indexBlockCountNow - indexBlockCountAgo) > freeAreaCount()) {
+		swd.IsputDown = 1;
+		return swd;
+	}	
+	else {
+		swd.IsputDown = 0;
+		swd.fcb.fileSize = str_b.size() / 8;
+	}
+	// 删除交换区文件
+	deleteAppointSwapAreaFile(fcb.fileStartAddr);
+	SwapInformation si = SwapAreaCount(amountNow);
+	int swapAddr = si.startAddr;
+
+	int idxs_first[BLOCKADDRCOUNT];
+	int idxs_second[BLOCKADDRCOUNT * BLOCKADDRCOUNT];
+	int idxs_first_count = 0, idx_second_count = 0;
+	
+	for (int i = 0; i < BLOCKADDRCOUNT; i++) {
+		int idx = 0;
+		for (int j = i * 10; j < i * 10 + 10; j++) {
+			idx += pow(2, j % 10) * file_data[fcb.fileIndexAddr].data[j];
+		}
+		if (idx == 0) break;
+		idxs_first[idxs_first_count++] = idx;
+		for (int n = 0; n < BLOCKADDRCOUNT; n++) {
+			
+			int idx2 = 0;
+			for (int m = n * 10; m < n * 10 + 10; m++) {
+				idx2 += pow(2, m % 10) * file_data[idx].data[m];
+			}
+			if (idx2 == 0) break;
+			idxs_second[idx_second_count++] = idx2;
+		}
+	}
+	int p = 0;
+	if (amountNow < amountAgo) {
+		int idxs_first_count_now = 0;
+		if (amountNow % BLOCKADDRCOUNT == 0) idxs_first_count_now = amountNow % BLOCKADDRCOUNT;
+		else idxs_first_count_now = amountNow % BLOCKADDRCOUNT + 1;
+		if (idxs_first_count_now < idxs_first_count) {
+			for (int i = idxs_first_count_now * 10; i < idxs_first_count * 10; i++) {
+				file_data[fcb.fileIndexAddr].data[i] = 0;
+			}
+		}
+		for (int i = 0; i < amountNow; i++) {
+			int idx = idxs_second[i];
+			vector<int> idx_b = decimalismToBinary(idx);
+			int q = 0;
+			for (int item : idx_b) {
+				swap_data[swapAddr].addr[q++] = item;
+			}
+			dataBlockAssignment(idx, p, swapAddr);
+			p++; swapAddr++;
+		}
+		for (int i = amountNow; i < amountAgo; i++) {
+			int idx = idxs_second[i];
+			for (int j = 0; j < BLOCKSIZE; j++) {
+				file_data[idx].data[j] = 0;
+			}
+			file_data[idx].flag = 0;
+		}
+	}
+	else if (amountNow == amountAgo) {
+		for (int i = 0; i < amountNow; i++) {
+			int idx = idxs_second[i];
+			vector<int> idx_b = decimalismToBinary(idx);
+			int q = 0;
+			for (int item : idx_b) {
+				swap_data[swapAddr].addr[q++] = item;
+			}
+			dataBlockAssignment(idx, p, swapAddr);
+			p++; swapAddr++;
+		}
+	}
+	else {
+		for (int i = 0; i < amountAgo; i++) {
+			int idx = idxs_second[i];
+			vector<int> idx_b = decimalismToBinary(idx);
+			int q = 0;
+			for (int item : idx_b) {
+
+				swap_data[swapAddr].addr[q++] = item;
+			}
+			dataBlockAssignment(idx, p, swapAddr);
+			p++; swapAddr++;
+		}
+		int x = amountAgo % BLOCKADDRCOUNT;
+		int y = amountNow - amountAgo;
+		if (x != 0) {
+			int idx_first = idxs_first[idxs_first_count - 1];
+			if (y < BLOCKADDRCOUNT - x) {
+				for (int n = x; n < x + y; n++) {
+					int idx_second = indexBlockAssignment(idx_first, n);
+					vector<int> idx_b = decimalismToBinary(idx_second);
+					int q = 0;
+					for (int item : idx_b) {
+						swap_data[swapAddr].addr[q++] = item;
+					}
+					
+					dataBlockAssignment(idx_second, p, swapAddr);
+					p++; swapAddr++;
+				}
+				return swd;
+			}
+			else {
+				for (int n = x; n < BLOCKADDRCOUNT; n++) {
+					int idx_second = indexBlockAssignment(idx_first, n);
+					vector<int> idx_b = decimalismToBinary(idx_second);
+					int q = 0;
+					for (int item : idx_b) {
+						swap_data[swapAddr].addr[q++] = item;
+					}
+					dataBlockAssignment(idx_second, p, swapAddr);
+					p++; swapAddr++;
+				}
+			}
+		}
+		int surplusCount = x == 0 ? amountNow - amountAgo : amountNow - amountAgo - (BLOCKADDRCOUNT - x);
+		int secondIndexBlockCount = surplusCount % BLOCKADDRCOUNT == 0 ? surplusCount / BLOCKADDRCOUNT : surplusCount / BLOCKADDRCOUNT + 1;
+
+		for (int i = idxs_first_count; i < secondIndexBlockCount + idxs_first_count; i++) {
+			int idx_first = indexBlockAssignment(fcb.fileIndexAddr, i);
+			if (surplusCount % BLOCKADDRCOUNT != 0 && i + 1 == secondIndexBlockCount + idxs_first_count) {
+				for (int j = 0; j < surplusCount % BLOCKADDRCOUNT; j++) {
+					int idx_second = indexBlockAssignment(idx_first, j);
+					vector<int> idx_b = decimalismToBinary(idx_second);
+					int p = 0;
+					for (int item : idx_b) {
+						swap_data[swapAddr].addr[p++] = item;
+					}
+					dataBlockAssignment(idx_second, j, swapAddr);
+					swapAddr++;
+				}
+			}
+			else {
+				for (int j = 0; j < BLOCKADDRCOUNT; j++) {
+					int idx_second = indexBlockAssignment(idx_first, j);
+					vector<int> idx_b = decimalismToBinary(idx_second);
+					int p = 0;
+					for (int item : idx_b) {
+						swap_data[swapAddr].addr[p++] = item;
+					}
+					dataBlockAssignment(idx_second, j, swapAddr);
+					swapAddr++;
+				}
+			}
+		}
+	}
+	return swd;
+}
+void format() {
+	// 格式化位示图
+	for (int i = 0; i < 30; i++) {
+		for (int j = 0; j < 30; j++) {
+			bitMap[i][j] = 0;
+		}
+	}
+	// 格式化文件区
+	for (int i = 0; i < FILEAREASIZE; i++) {
+		for (int j = 0; j < BLOCKSIZE; j++) {
+			file_data[i].data[j] = 0;
+		}
+		file_data[i].flag = 0;
+	}
+	// 格式化交换区
+	for (int i = 0; i < SWAPAREASIZE; i++) {
+		for (int j = 0; j < 10; j++) {
+			swap_data[i].addr[j] = 0;
+		}
+		for (int j = 0; j < BLOCKSIZE; j++) {
+			swap_data[i].data[j] = 0;
+		}
+		swap_data[i].fileStartAddr = -1;
+		swap_data[i].flag = 0;
+		swap_data[i].IsInFileArea = 0;
+	}
+}
+
+
+
+// 获取创建时间
+string GetNowTime()
+{
+	SYSTEMTIME sys;
+	GetLocalTime(&sys);
+	sys.wYear; // 年份
+	sys.wMonth;
+	sys.wDay;
+	sys.wHour;
+	sys.wMinute;
+	sys.wSecond; // 月份
+
+	string times = "";
+	times.append(to_string(sys.wYear)).append("/");
+	times.append(to_string(sys.wMonth)).append("/");
+	times.append(to_string(sys.wDay)).append(" ");
+	times.append(to_string(sys.wHour)).append(":");
+	times.append(to_string(sys.wMinute)).append(":");
+	times.append(to_string(sys.wSecond)).append(".");
+	return times;
+}
+
+void InitMFD()
+{
+	MFD_Link = (MFD *)new MFD; // 带头结点的单向链表
+	MFD *p = MFD_Link;
+	p->next = (MFD *)new MFD;
+	p->next->UserName = "user0";
+	p->next->Password = "123456";
+	for (int i = 0; i < 20; i++)
+	{
+		if (UserId[i] == 0)
+		{
+			UserId[i] = 1;
+			p->next->id = i;
+			break;
+		}
+	}
+	p = p->next;
+	// p->NextUfd = NULL;
+	p->next = NULL;
+	cout << "初始用户user0创建成功！（默认初始密码为123456）" << endl;
+}
+bool DefaultFiles = true;
+void InitFCB()
+{
+	FCB_Link = (FCB *)new FCB; // 带头结点的单向链表
+	// UFD *p = UFD_Link;
+	FCB_Link->next = NULL;
+	// if (p->FileName.length() == 0)
+	// {
+	// 	p->next = NULL;
+	// 	cout << "目录为空，请先创建文件" << endl;
+	// }
+	// else if (p->FileName.length() == 0 && p->Creator == "User1" && DefaultFiles)
+	// { // 为默认用户创建两个文件
+	// 	DefaultFiles = false;
+	// 	p->next = (UFD *)new UFD;
+	// 	// MFD_Link->NextUfd = p->next;
+	// 	p->next->FileName = "file1.txt";
+	// 	string str = "你不是真正的快乐\n你的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着";
+	// 	AllInformation ai = putfileData("file1.txt", str);
+	// 	p->next->mode = false;
+	// 	p->next->Addr = ai.fileStartAddr;
+	// 	p->next->FileLength = ai.fileSize;
+	// 	p = p->next;
+	// 	p->next = (UFD *)new UFD;
+	// 	p->next->FileName = "file2.txt";
+	// 	str = "ni的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着";
+	// 	AllInformation ai2 = putfileData("file2.txt", str);
+	// 	p->next->mode = true;
+	// 	p->next->Addr = ai2.fileStartAddr;
+	// 	p->next->FileLength = ai2.fileSize;
+	// 	p = p->next;
+	// 	p->next = NULL;
+	// }
+	// else
+	// {
+	// 	return;
+	// }
+	// // p->next = (UFD*)new UFD;
+	// MFD_Link->NextUfd = p->next;
+	// p->next->FileName = "file1.txt";
+	// string str = "你不是真正的快乐\n你的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着";
+	// AllInformation ai = putfileData("file1.txt", str);
+	// p->next->MaxFileLength = str.length();
+	// p->next->mode = false;
+	// p->next->Addr = ai.fileStartAddr;
+	// p->next->FileLength = ai.fileSize;
+	// p = p->next;
+	// p->next = (UFD *)new UFD;
+	// p->next->FileName = "file2.txt";
+	// string str = "ni的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着";
+	// AllInformation ai2 = putfileData("file2.txt", str);
+	// p->next->MaxFileLength = str.length();
+	// p->next->mode = true;
+	// p->next->Addr = ai2.fileStartAddr;
+	// p->next->FileLength = ai2.fileSize;
+	// p = p->next;
+	// p->next = NULL;
+}
+void InitAFD(){
+	AFD_Link = (AFD *)new AFD;
+	AFD_Link->next = NULL;
+	return ;
+}
+void RenameFile()
+{
+	string FileName;
+	FCB *temp = FCB_Link;
+	cout << "请输入要重命名的文件名：";
+	cin >> FileName;
+	while (temp)
+	{
+	// 	string username;   // 用户名 
+	//  string fileName;   // 文件名
+	//  int fileSize;      // 文件大小
+	//  bool fileNature;   // 文件属性 0 只读 1 可读可写
+	//  string createTime; // 文件创建时间
+	//  int fileStartAddr; // 文件起始地址
+	//  int fileIndexAddr; // 文件索引地址
+	//  FCB *next;
+		if (temp->fileName == FileName)
+		{
+			cout << "请输入新的文件名：";
+			cin >> temp->fileName;
+			cout << "重命名成功！" << endl;
+			return;
+		}
+		temp = temp->next;
+	}
+	if (!temp)
+	{
+		cout << "该用户未创建该文件，请先创建文件！";
+		return;
+	}
+	else
+	{
+		cout << "重命名成功！" << endl;
+	}
+}
+void help()
+{
+	cout << "*****************************************************************" << endl;
+	cout << "*\t\t命令			  说明			*" << endl;
+	cout << "*\t\tadduser			新建用户		*" << endl; // 已实现
+	cout << "*\t\trmuser			删除用户		*" << endl; // 已实现
+	cout << "*\t\tshowuser		显示用户		*" << endl;		// 已实现
+	cout << "*\t\tlogin			登录系统		*" << endl;		// 已实现
+	cout << "*\t\tcreate			创建文件		*" << endl; // 创建空文件写好了
+	cout << "*\t\trename			重命文件		*" << endl; // 已实现
+	cout << "*\t\topen			打开文件		*" << endl;
+	cout << "*\t\tclose			关闭文件		*" << endl;
+	cout << "*\t\tdelete			删除文件		*" << endl; 
+	cout << "*\t\tread			读取文件		*" << endl;
+	cout << "*\t\twrite			写入文件		*" << endl;
+	cout << "*\t\tls		    	显示目录		*" << endl; // 已实现
+	cout << "*\t\tlogout 			切换用户		*" << endl;
+	cout << "*\t\thelp			帮助菜单		*" << endl; // 已实现
+	cout << "*\t\tcls 			清除屏幕		*" << endl; // 已实现
+	cout << "*\t\tquit			退出系统		*" << endl; // 已实现
+	cout << "*****************************************************************" << endl;
+}
+void System_Init()
+{
+	help();
+	// 初始化MFD
+	InitMFD();
+	InitFCB();
+	cout << "创建完毕" << endl;
+}
+void ShowUsers()
+{
+	MFD *temp = MFD_Link->next;
+	cout << "当前用户列表：" << endl;
+	cout << "\tID"
+		 << "\t用户名" << endl;
+	while (temp)
+	{
+		cout << "\t" << temp->id << "\t" << temp->UserName << endl;
+		temp = temp->next;
+	}
+}
+void add_user()
+{
+	string UserName;
+	string PassWord;
+	char UserPassword[20];
+	MFD *temp = MFD_Link;
+	cout << "请输入用户名：";
+	cin >> UserName;
+	cout << "请输入用户" << UserName << "的密码：";
+	char ch;
+	int p = 0;
+	while ((ch = _getch()) != '\r')
+	{
+		if (ch == 8)
+		{
+			if (p > 0)
+			{
+				putchar('\b'); // 替换*字符
+				putchar(' ');
+				putchar('\b');
+				p--;
+			}
+			else
+			{
+				putchar(' ');
+				putchar('\b');
+			}
+			continue;
+		}
+		else
+		{
+			putchar('*'); // 在屏幕上打印星号
+		}
+		UserPassword[p++] = ch;
+	}
+	UserPassword[p] = '\0';
+	PassWord = UserPassword;
+	while (temp)
+	{
+		if (temp->UserName == UserName)
+		{
+			cout << "用户已存在！" << endl;
+			return;
+		}
+		if (!temp->next)
+		{
+			break;
+		}
+		temp = temp->next;
+	}
+	temp->next = (MFD *)new MFD;
+	temp = temp->next;
+	temp->UserName = UserName;
+	temp->Password = PassWord;
+	for (int i = 0; i < 20; i++)
+	{
+		if (UserId[i] == 0)
+		{
+			UserId[i] = 1;
+			temp->id = i;
+			break;
+		}
+	}
+	temp->next = NULL;
+	// temp->NextUfd = NULL;
+	cout << endl
+		 << "用户" << UserName << "创建成功！" << endl;
+	// ShowUsers();
+}
+void rmuser()
+{
+	string UserName;
+	cout << "请输入要删除的用户名：";
+	cin >> UserName;
+	MFD *temp = MFD_Link;
+	MFD *temp1 = MFD_Link->next;
+	while (temp1)
+	{
+		if (temp1->UserName == UserName)
+		{
+			char password[20];
+			string Password;
+			cout << "请输入用户" << UserName << "的密码：";
+			for (int j = 3; j > 0; j++)
+			{
+				char ch;
+				int p = 0;
+				if (j == 1)
+				{
+					cout << "密码错误，用户删除失败！" << endl;
+					return;
+				}
+				while ((ch = _getch()) != '\r')
+				{
+					if (ch == 8)
+					{
+						if (p > 0)
+						{
+							putchar('\b'); // 替换*字符
+							putchar(' ');
+							putchar('\b');
+							p--;
+						}
+						else
+						{
+							putchar(' ');
+							putchar('\b');
+						}
+						continue;
+					}
+					else
+					{
+						putchar('*'); // 在屏幕上打印星号
+					}
+					password[p++] = ch;
+				}
+				password[p] = '\0';
+				Password = password;
+				if (Password == temp1->Password)
+				{
+					break;
+				}
+				else
+				{
+					cout << endl
+						 << "密码错误！还有" << j - 1 << "次机会！" << endl;
+				}
+			}
+			temp->next = temp1->next;
+			UserId[temp1->id] = 0;
+			delete temp1;
+			cout << endl
+				 << "用户" << UserName << "删除成功！" << endl;
+			return;
+		}
+		temp = temp1;
+		temp1 = temp1->next;
+	}
+	cout << "用户" << UserName << "不存在！" << endl;
+};
+void login()
+{
+	if(UserName != ""){
+		cout << "用户" << UserName << "已登录！请注销用户后登录" << endl;
+		return;
+	}
+	string UserName0;
+	cout << "请输入用户名：";
+	cin >> UserName0;
+	MFD *temp = MFD_Link->next;
+	while (temp)
+	{
+		if (temp->UserName == UserName0)
+		{
+			char password[20];
+			string Password;
+			cout << "请输入用户" << UserName0 << "的密码：";
+			for (int j = 3; j > 0; j++)
+			{
+				char ch;
+				int p = 0;
+				if (j == 1)
+				{
+					cout << "密码错误，用户登录失败！" << endl;
+					return;
+				}
+				while ((ch = _getch()) != '\r')
+				{
+					if (ch == 8)
+					{
+						if (p > 0)
+						{
+							putchar('\b'); // 替换*字符
+							putchar(' ');
+							putchar('\b');
+							p--;
+						}
+						else
+						{
+							putchar(' ');
+							putchar('\b');
+						}
+						continue;
+					}
+					else
+					{
+						putchar('*'); // 在屏幕上打印星号
+					}
+					password[p++] = ch;
+				}
+				password[p] = '\0';
+				Password = password;
+				if (Password == temp->Password)
+				{
+					break;
+				}
+				else
+				{
+					cout << endl
+						 << "密码错误！还有" << j - 1 << "次机会！" << endl;
+				}
+			}
+			cout << endl
+				 << "用户" << UserName << "登录成功！" << endl;
+			UserName = UserName0;
+			return;
+		}
+		temp = temp->next;
+	}
+	cout << "用户" << UserName0 << "不存在！" << endl;
+}
+void create()
+{
+	if (UserName == "")
+	{
+		cout << "请先登录！" << endl;
+		return;
+	}
+	else
+	{
+		string FileName;
+		FCB *p = FCB_Link;
+		cout << "请输入文件名：";
+		cin >> FileName;
+		cout << "请输入权限（0表示只读，1表示可读可写）：";
+		int mode;
+		cin >> mode;
+		while (p->next)
+		{
+			
+			if (p->next->fileName == FileName && p->next->username == UserName)
+			{
+				cout << "文件" << FileName << "已存在！" << endl;
+				return;
+			}
+			p = p->next;
+		}
+	// int fileSize;      // 文件大小
+	// int fileStartAddr; // 文件起始地址
+	// int fileIndexAddr; // 文件索引地址
+		FCB *temp = (FCB*)new FCB;
+		temp->fileName = FileName;
+		temp->username = UserName;
+		string nowtime = GetNowTime();
+		temp->createTime = nowtime;
+		temp->fileIndexAddr = createFreeFile();
+		temp->fileStartAddr = -1;
+		temp->fileSize = 0;
+		temp->fileNature = (bool)mode;
+		temp->next = NULL;
+		p->next = temp;
+		cout << "文件" << FileName << "创建成功！" << endl;
+	}
+}
+void PrintFCB()
+{ // ls
+	FCB *p = FCB_Link->next;
+	if (!p)
+	{
+		cout << "该用户未创建任何文件，请先创建文件！";
+		return;
+	}
+	cout << "文件名\t\t文件权限\t文件大小\t起始地址\t索引地址\t创建时间" << endl;
+	while (p)
+	{
+		cout << p->fileName;
+		if (!p->fileNature)
+		{
+			cout << "\t\t只读";
+		}
+		else
+		{
+			cout << "\t\t可读写";
+		}
+		cout<<"\t\t" << p->fileSize;
+		if(p->fileStartAddr == 0){
+			cout << "\t\t————";
+		}
+		else
+		{
+			cout << "\t\t" << p->fileStartAddr;
+		}
+		cout <<"\t\t" << p->fileIndexAddr <<"\t\t"<<p->createTime<< endl;
+		p = p->next;
+	}
+}
+void rename(){
+	if (UserName == "")
+	{
+		cout << "请先登录！" << endl;
+		return;
+	}
+	else
+	{
+		string FileName;
+		FCB *p = FCB_Link;
+		cout << "请输入文件名：";
+		cin >> FileName;
+		while (p->next)
+		{
+			if (p->next->fileName == FileName && p->next->username == UserName)
+			{
+				cout << "请输入新文件名：";
+				cin >> FileName;
+				FCB *q = FCB_Link;
+				while (q->next)
+				{
+					if (q->next->fileName == FileName && q->next->username == UserName)
+					{
+						cout << "文件" << FileName << "已存在！" << endl;
+						return;
+					}
+					q = q->next;
+				}
+				p->next->fileName = FileName;
+				cout << "文件重命名成功！" << endl;
+				return;
+			}
+			p = p->next;
+		}
+		cout << "文件" << FileName << "不存在！" << endl;
+	}
+}
+void open(){
+	if (UserName == "")
+	{
+		cout << "请先登录！" << endl;
+		return;
+	}
+	else
+	{
+		string FileName;
+		FCB *p = FCB_Link->next;
+		AFD *q = AFD_Link;
+		cout << "请输入要打开的文件名：";
+		cin >> FileName;
+		bool Mode;
+		while (p)
+		{
+			if (p->fileName == FileName && p->username == UserName)
+			{
+				while(q->next){
+					if(q->next->FileName == FileName){
+						cout<<"文件"<<FileName<<"已经打开！"<<endl;
+						return;
+					}
+					if(!q->next)
+					{
+						break;
+					}
+					q = q->next;
+				}
+				getfileData(*(p->next));
+				cout<<"请选择以何种方式打开文件（0表示只读，1表示可读可写）：";
+				cin>>Mode;
+				if(Mode == true && p->fileNature == false){
+					cout<<"文件"<<FileName<<"为只读文件，无法以可读可写方式打开！"<<endl;
+					return;
+				}
+				q->next =(AFD*) new AFD;
+				q = q->next;
+				q->FileName = p->fileName;
+				q->mode = Mode;
+				q->Start = p->fileStartAddr;
+				q->FileLength = p->fileSize;
+				q->next = NULL;
+				return;
+			}
+			else if(p->fileName == FileName && p->username != UserName){
+				cout << "文件" << FileName << "不是该用户创建，无法打开！" << endl;
+				return;
+			}
+			p = p->next;
+		}
+		cout << "文件" << FileName << "不存在！" << endl;
+		return;
+	}
+}
+void PrintAFD(){
+	cout<<"用户"<<UserName<<"的文件打开表如下："<<endl;
+	AFD *q = AFD_Link;
+	if(q->next == NULL){
+		cout<<"文件打开表为空！"<<endl;
+		return;
+	}
+	cout<<"文件名\t\t文件长度\t文件起始盘块\t\t文件打开方式"<<endl;
+	// string FileName;
+	// int FileLength;
+	// int Start;
+	// int mode;
+	// struct AFD *next;
+	while(q->next){
+		q = q->next;
+		cout<<q->FileName<<"\t\t"<<q->FileLength;
+		if(!q->Start){
+			cout<<"\t\t————";
+		}
+		else{
+			cout<<"\t\t"<<q->Start;
+		}
+		if(q->mode == true){
+			cout<<"\t\t可读可写"<<endl;
+		}
+		else{
+			cout<<"\t\t只读"<<endl;
+		}
+	}
+}
+void FileSystem()
+{
+	while (1)
+	{
+		string command;
+		cout << UserName << "\\>";
+		cin >> command;
+		if (command == "adduser")
+		{
+			add_user();
+		}
+		else if (command == "rmuser")
+		{
+			rmuser();
+		}
+		else if (command == "showuser")
+		{
+			ShowUsers();
+		}
+		else if (command == "login")
+		{
+			login();
+			InitAFD();
+		}
+		else if (command == "create")
+		{
+			create();
+		}
+		else if (command == "ls"){
+			PrintFCB();
+		}
+		else if (command == "rename"){
+			rename();
+		}
+		else if (command == "open"){
+			open();
+			PrintAFD();
+		}
+		else if (command == "cls")
+		{
+			system("cls");
+		}
+		else if (command == "help"){
+			help();
+		}
+		else if (command == "quit" || command == "exit")
+		{
+			break;
+		}
+		else
+		{
+			cout << "命令错误！请重新输入" << endl;
+		}
+	}
+}
+
+int main() {
+	format();
+	
+	FCB fcb;
+	fcb.username = "ljl";
+	fcb.fileName = "a1";
+	fcb.fileNature = 1;
+	fcb.fileIndexAddr = createFreeFile();
+	fcb.fileStartAddr = -1;
+	fcb.fileSize = 0;
+	fcb.createTime = "2022/12/26 21:22:07";
+	
+	// string str = "你不是真正的快乐\n你的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着";
+	// SwapWriteData ai = putfileData(fcb, str);
+	// fcb.fileIndexAddr = ai.fcb.fileIndexAddr;
+	// fcb.fileStartAddr = ai.fcb.fileStartAddr;
+	// fcb.fileSize = ai.fcb.fileSize;
+
+	//printBitMap();
+	// std::cout << "文件1索引物理块号: " << ai.fcb.fileIndexAddr << endl;
+	// std::cout << "文件1起始物理块号: " << ai.fcb.fileStartAddr << endl;
+	// std::cout << "文件1大小: " << ai.fcb.fileSize << "B" << endl;
+	// std::cout << "当前空闲磁盘数目: " << freeAreaCount() << endl;
+	// std::cout << "文件1内容: " << endl << endl;
+	// SwapReadData srd = getfileData(fcb);
+	// std::cout << srd.fileContent << endl << endl;
+
+
+	// str = "你不是真正的快乐\n你的伤从不肯\n完全的愈合\n我站在你左侧\n却像隔着银河\n难道就真的抱着遗憾\n一直到老了\n然后才后悔着\n你不是真正的快乐\n你的笑只是\n你穿的保护色";
+
+	// SwapWriteData swd = amendFile(fcb, str);
+	
+	// std::cout << "文件1索引物理块号: " << swd.fcb.fileIndexAddr << endl;
+	// std::cout << "文件1起始物理块号: " << swd.fcb.fileStartAddr << endl;
+	// std::cout << "文件1大小: " << swd.fcb.fileSize << "B" << endl;
+	// std::cout << "当前空闲磁盘数目: " << freeAreaCount() << endl;
+	// std::cout << "文件1内容: " << endl << endl;
+	// SwapReadData srds = getfileData(swd.fcb);
+	// std::cout << srds.fileContent << endl << endl;
+	System_Init();
+	FileSystem();
+	return 0;
+}
