@@ -23,6 +23,17 @@ using namespace std;
 bool bitMap[30][30];		 // 位示图
 int strb[MAXFILE * 8] = {0};
 
+const int num = 64; // 总内存块个数
+int blockNum;		// 物理块总数
+int pageNum;		// 物理块中的页面数量
+
+struct PCB
+{					   // 页表项
+	int id;			   // 内存块id
+	int fileStartAddr; // 所属文件磁盘起始地址
+	int disk_id;	   // 物理块号
+};
+
 typedef struct FCB
 {
 	string username;   // 用户名
@@ -34,6 +45,17 @@ typedef struct FCB
 	int fileIndexAddr; // 文件索引地址
 	FCB *next;
 } FCB, *FCBptr;
+
+typedef struct MCB
+{ // 内存控制块
+	PCB pcb;
+	int pageID;			  // 页面号
+	bool data[BLOCKSIZE]; // pagecontent（大小320bit）
+	int stayTime;		  // 页面在物理块中的停留时间（与物理块ID对应）
+	bool work;			  // 是否空闲 0空 1不空
+} MCB;
+
+MCB b[num];
 
 struct SwapReadData
 {
@@ -132,8 +154,22 @@ void deletefileData(int firstStartAddr, int indexBlock);
 void format();
 // 修改文件
 SwapWriteData amendFile(FCB fcb, string fileContent);
+// 写入数据 一个块为单位
+void putBlockData(PCB pcb, string BlockContent);
 // 创建一个空文件
 int createFreeFile();
+
+void InitMCB();																 // 初始化64块内存块
+PCB *InitPCB(int filesize);													 // 每读一个文件到内存都要初始化其页表
+int exist(int curpage, int fileStartAddr);									 // 看当前文件的当前页面在不在内存中,在的话返回物理块号
+PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], int disk_data[64][320]); // 为文件分配内存空间，返回页表
+void ShowPage();															 // 内存块号  所属文件外存块号   页面号  多久没被访问
+void ShowPageContent();														 // 此函数用于自查内容，内存块号:  所属文件外存块号   页面号 内容
+// void ShowStayTime();//内存块号:多久没被访问
+int GetLongestStay();									// 获取在物理块中停留时间最长的页面所在物理块号
+void Delete(FCB f);										// 关闭文件（仅对读线程）回收内存和该线程的页表
+PCB *ReadToMemory(SwapReadData f_Information);			// 读，将文件存入内存，返回该文件页表
+SwapWriteData WriteToMandD(SwapReadData f_Information); // 写，对一个文件进行写操作，写回磁盘,返回写回的数据
 
 /*
 创建空文件并写入数据
@@ -949,6 +985,332 @@ void format()
 	}
 }
 
+// 写入数据 一个块为单位
+void putBlockData(PCB pcb, string BlockContent)
+{
+	string str_b = BlockContent; // 传的就是二进制字符串
+	for (int i = 0; i < MAXFILE * 8; i++)
+		strb[i] = 0;
+	for (int i = 0; i < str_b.size(); i++)
+	{
+		strb[i] = str_b[i] - '0';
+	}
+	for (int i = 0; i < SWAPAREASIZE; i++)
+	{
+		if (swap_data[i].fileStartAddr == pcb.fileStartAddr)
+		{
+			int p = i;
+			while (swap_data[p].fileStartAddr == pcb.fileStartAddr)
+			{
+				int idx = 0;
+				for (int j = 0; j < 10; j++)
+				{
+					idx += pow(2, j) * swap_data[p].addr[j];
+				}
+				if (idx == pcb.disk_id)
+				{
+					for (int j = 0; j < BLOCKSIZE; j++)
+					{
+						swap_data[p].data[j] = strb[j];
+					}
+				}
+				p++;
+			}
+		}
+	}
+	for (int i = 0; i < BLOCKSIZE; i++)
+	{
+		file_data[pcb.disk_id].data[i] = strb[i];
+	}
+	return;
+}
+
+void InitMCB()
+{
+	int i;
+	blockNum = num;
+	pageNum = 0;
+	for (int i = 0; i < blockNum; i++)
+	{
+		b[i].pageID = -1;
+		for (int j = 0; j < BLOCKSIZE; j++)
+		{
+			b[i].data[j] = 0;
+		}
+		b[i].stayTime = -1;
+		b[i].work = 0;
+		b[i].pcb.id = -1;
+		b[i].pcb.disk_id = -1;
+		b[i].pcb.fileStartAddr = -1;
+	}
+}
+
+PCB *InitPCB(int fileblocknum)
+{
+	PCB *pageTable = new PCB[fileblocknum]();
+	for (int i = 0; i < fileblocknum; i++)
+	{
+		pageTable[i].disk_id = -1;
+		pageTable[i].fileStartAddr = -1;
+		pageTable[i].id = -1;
+	}
+	return pageTable;
+}
+
+int exist(int curpage, int fileStartAddr)
+{
+	for (int i = 0; i < blockNum; i++)
+	{
+		if (b[i].pageID == curpage && b[i].pcb.fileStartAddr == fileStartAddr)
+			return i;
+	}
+	return -1;
+}
+
+int findspace()
+{
+	for (int i = 0; i < blockNum; i++)
+	{
+		if (b[i].pageID == -1)
+			return i;
+	}
+	return -1;
+}
+
+PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
+{
+	int fileblocknum = f.fileSize / 40;
+	if (f.fileSize % 40 > 0)
+		fileblocknum += 1;
+
+	if (fileblocknum > blockNum - pageNum)
+	{
+		printf("内存块数不够，发生错误");
+
+		return NULL;
+	}
+	else if (fileblocknum <= 8)
+	{
+		for (int i = 0; i < fileblocknum; i++)
+		{
+			int existnum = exist(i, f.fileStartAddr);
+			if (existnum != -1)
+			{ // 内存中有该页号
+				b[existnum].stayTime = 0;
+			}
+			else
+			{							 // 缺页
+				int space = findspace(); // 找第一个内存空闲块号
+				pageNum++;
+				// 填充页表项
+				pageTable[i].id = space;
+				pageTable[i].fileStartAddr = f.fileStartAddr;
+				pageTable[i].disk_id = disk_id[i];
+				// 将相关信息填入b[space]
+				b[space].pcb = pageTable[i];
+				b[space].pageID = i;
+				b[space].stayTime = 0;
+				b[space].work = 1;
+				for (int j = 0; j < 320; j++)
+					b[space].data[j] = disk_data[i][j];
+			}
+			for (int j = 0; j < blockNum; j++)
+			{
+				if (j == existnum)
+					continue;
+				if (b[j].pageID != -1)
+					b[j].stayTime++; // 每块非空闲内存块时钟数+1
+			}
+		}
+	}
+	else if (fileblocknum > 8)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			int existnum = exist(i, f.fileStartAddr);
+			if (existnum != -1)
+			{ // 内存中有该页号
+				b[existnum].stayTime = 0;
+			}
+			else
+			{							 // 缺页
+				int space = findspace(); // 找第一个内存空闲块号
+				pageNum++;
+				// 填充页表项
+				pageTable[i].id = space;
+				pageTable[i].fileStartAddr = f.fileStartAddr;
+				pageTable[i].disk_id = disk_id[i];
+				// 将相关信息填入b[space]
+				b[space].pcb = pageTable[i];
+				b[space].pageID = i;
+				b[space].stayTime = 0;
+				b[space].work = 1;
+				for (int j = 0; j < 320; j++)
+					b[space].data[j] = disk_data[i][j];
+			}
+			for (int j = 0; j < blockNum; j++)
+			{
+				if (j == existnum)
+					continue;
+				if (b[j].pageID != -1)
+					b[j].stayTime++; // 每块非空闲内存块时钟数+1
+			}
+		}
+		for (int i = 8; i < fileblocknum; i++)
+		{
+			pageNum++;
+			int space = GetLongestStay(); // 返回staytime最大的内存块号
+			cout << "内存中第" << space << "块中磁盘块号为" << b[space].pcb.disk_id << "页号为" << b[space].pageID << "的数据块被换出" << endl;
+			// 调用Disk中的函数将换出页面信息保存到外存兑换区
+			string swapcontent = ""; // 二进制字符串
+			for (int m = 0; m < BLOCKSIZE; m++)
+				swapcontent += std::to_string(b[i].data[m]);
+			PCB swappcb = b[space].pcb;
+			// cout << "换出的字符串："<<swapcontent << endl;
+			putBlockData(swappcb, swapcontent); // 保存到兑换区
+
+			// 填充页表项
+			pageTable[i].id = space;
+			pageTable[i].fileStartAddr = f.fileStartAddr;
+			pageTable[i].disk_id = disk_id[i];
+			// 将相关信息填入b[space]
+			b[space].pcb = pageTable[i];
+			b[space].pageID = i;
+			b[space].stayTime = 0;
+			b[space].work = 1;
+			for (int j = 0; j < 320; j++)
+				b[space].data[j] = disk_data[i][j];
+			for (int j = 0; j < blockNum; j++)
+			{
+				if (j == space)
+					continue;
+				if (b[j].pageID != -1)
+					b[j].stayTime++; // 每块非空闲内存块时钟数+1
+			}
+		}
+	}
+
+	return pageTable;
+}
+
+void ShowPage()
+{
+	printf("                              *******[64块内存块表]*******\n");
+	int i;
+	// cout << "内存块号    所属文件外存块号   页面号   多久未访问" << endl;
+	for (i = 0; i < blockNum; i++){
+		cout << "Block[" << i << "]: " << i << "  "
+			 << "\tFileStartAddr[" << i << "]: " << b[i].pcb.fileStartAddr << "  "
+			 << "\tPageID[" << i << "]: " << b[i].pageID << "  ";
+			if(i<10){
+				 cout << "\t  Stay[" << i << "]: " << b[i].stayTime << endl;
+			 }
+			else{
+				cout<<"  Stay[" << i << "]: " << b[i].stayTime << endl;
+			}
+	}
+}
+
+void ShowPageContent()
+{
+	int i;
+	for (i = 0; i < blockNum; i++)
+	{
+		cout << "Block[" << i << "]: " << b[i].pcb.fileStartAddr << "  " << b[i].pageID << " Content: [";
+		for (auto j : b[i].data)
+			cout << j;
+		cout << "]" << endl;
+	}
+	cout << "--------------" << endl;
+}
+
+int GetLongestStay()
+{
+	int i;
+	int max_pos = 0;
+	for (i = 0; i < pageNum; i++)
+		if (b[max_pos].stayTime < b[i].stayTime)
+			max_pos = i;
+	return max_pos;
+}
+
+void Delete(FCB f)
+{
+	int fileblocknum = f.fileSize / 40;
+	if (f.fileSize % 40 > 0)
+		fileblocknum += 1;
+	for (int i = 0; i < pageNum; i++)
+		for (int j = 0; j < fileblocknum; j++)
+		{
+			if (b[i].pcb.fileStartAddr == f.fileStartAddr && b[i].pageID == j)
+			{
+				b[i].pageID = -1;
+				for (int j = 0; j < BLOCKSIZE; j++)
+				{
+					b[i].data[j] = 0;
+				}
+				b[i].stayTime = -1;
+				b[i].work = 0;
+				b[i].pcb.fileStartAddr = -1;
+				pageNum--;
+			}
+		}
+}
+
+PCB *ReadToMemory(SwapReadData f_Information)
+{
+	// cout << "文件内容是： " << f_Information.fileContent << endl;
+	FCB f1 = f_Information.fcb;
+	int fileblocknum1 = f1.fileSize / 40;
+	if (f1.fileSize % 40 > 0)
+		fileblocknum1 += 1;
+	int disk_id[32];
+	for (int i = 0; i < 32; i++)
+		disk_id[i] = f_Information.blockIndex[i];
+	bool disk_data[32][320];
+	for (int i = 0; i < 32; i++)
+		for (int j = 0; j < 320; j++)
+			disk_data[i][j] = f_Information.fileData[i][j];
+	PCB *pageTable = InitPCB(fileblocknum1);
+	// 分配内存并更新MCB和该文件pageTable，（如需要）完成全局LRU置换块
+	pageTable = LRUAlloc(f1, pageTable, disk_id, disk_data);
+	return pageTable;
+}
+
+SwapWriteData WriteToMandD(SwapReadData f_Information)
+{
+
+	// 只修改内容和文件大小
+	printf("输入你想要写入的内容：\n");
+	string content;
+	cin >> content;
+	cout << "修改后文件内容是：" << content << endl;
+	FCB f = f_Information.fcb;
+	// int disk_id[32];
+	// for (int i = 0; i < 32; i++) disk_id[i] = f_Information.fileContent[i];
+	bool disk_data[32][320];
+	string content_b = strToBinary(content);
+	// for (int i = 0; i < 32; i++)
+	//	for (int j = 0; j < 320; j++) {
+	//		if (i * 320 + j < content_b.size())
+	//			disk_data[i][j] = content_b[i * 320 + j] - '0';
+	//		else disk_data[i][j] = 0;
+	//	}
+	int length = content_b.size();
+	int filesize = length / 8;
+	if (length % 8 > 0)
+		filesize += 1;
+	f.fileSize = filesize; // 更新大小
+	int fileblocknum1 = f.fileSize / 40;
+	if (f.fileSize % 40 > 0)
+		fileblocknum1 += 1;
+	// PCB* pageTable = InitPCB(fileblocknum1);
+	// 分配内存并更新MCB和该文件pageTable，（如需要）完成全局LRU置换块
+	// pageTable = LRUAlloc(f, pageTable, disk_id, disk_data);
+	// 写了文件要把内容写回磁盘！！！
+	return amendFile(f, content);
+}
+
 FCB LinkSwapWFCB(SwapWriteData swd, FCB fcb)
 {
 	FCB fcb0 = swd.fcb;
@@ -1022,7 +1384,6 @@ void InitFCB()
 	}
 	FCB_Link = (FCB *)new FCB; // 带头结点的单向链表
 	FCB_Link->next = NULL;
-
 }
 void InitAFD()
 {
@@ -1497,7 +1858,7 @@ void read()
 		return;
 	}
 }
-void read(string FileName)
+bool read(string FileName)
 {
 	AFD *p = AFD_Link;
 	FCB *q = FCB_Link;
@@ -1518,17 +1879,17 @@ void read(string FileName)
 			if (temp.fileContent == "")
 			{
 				cout << "空！" << endl;
-				return;
+				return true;
 			}
 			else
 			{
 				cout << "：" << temp.fileContent << endl;
-				return;
+				return false;
 			}
 		}
 		p = p->next;
 	}
-	return;
+	return true;
 }
 void open()
 {
@@ -1563,8 +1924,6 @@ void open()
 					}
 					q = q->next;
 				}
-				SwapReadData srd = getfileData(*p);
-				*p = LinkSwapRFCB(srd, *p);
 				cout << "请选择以何种方式打开文件（0表示只读，1表示可读可写）：";
 				cin >> Mode;
 				if (Mode == true && p->fileNature == false)
@@ -1572,6 +1931,8 @@ void open()
 					cout << "文件" << FileName << "为只读文件，无法以可读可写方式打开！" << endl;
 					return;
 				}
+				SwapReadData srd = getfileData(*p);
+				*p = LinkSwapRFCB(srd, *p);
 				q->next = (AFD *)new AFD;
 				q = q->next;
 				q->FileName = p->fileName;
@@ -1579,7 +1940,13 @@ void open()
 				q->Start = p->fileStartAddr;
 				q->FileLength = p->fileSize;
 				q->next = NULL;
-				read(FileName);
+				if (read(FileName))
+				{
+					return;
+				};
+				PCB *pageTable0 = ReadToMemory(srd); // 读到内存里
+				ShowPage();							 // 展示内存块表
+				free(pageTable0);					 // 释放页表
 				return;
 			}
 			// else if (p->fileName == FileName && p->username != UserName)
@@ -1673,18 +2040,19 @@ void close()
 		{
 			if (p->next->FileName == FileName)
 			{
-				while(r)
+				while (r)
 				{
-					if(r->fileName == FileName && r->username == UserName)
+					if (r->fileName == FileName && r->username == UserName)
 					{
 						break;
 					}
-					r = r->next; // r就是要关闭文件的FCB
+					r = r->next; // *r就是要关闭文件的FCB
 				}
 				AFD *q = p->next;
 				p->next = q->next;
 				delete q;
-				// 调出内存的不归我管（狗头）
+				Delete(*r); // 调出内存的不归我管（狗头）
+				ShowPage();
 				cout << "文件" << FileName << "关闭成功！" << endl;
 				return;
 			}
@@ -1878,6 +2246,7 @@ void FileSystem()
 int main()
 {
 	format();
+	InitMCB(); // 初始化64个内存块
 
 	FCB fcb;
 	InitFCB();
@@ -1890,6 +2259,11 @@ int main()
 	fcb.fileSize = 0;
 	fcb.next = NULL;
 	fcb.createTime = GetNowTime();
+	string str = "SHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQWSHDGSJGLSJGLSGSEJLGEKGQJVLQWVNMLWQJFGLJQW";
+	SwapWriteData ai = putfileData(fcb, str);
+	fcb.fileIndexAddr = ai.fcb.fileIndexAddr;
+	fcb.fileStartAddr = ai.fcb.fileStartAddr;
+	fcb.fileSize = ai.fcb.fileSize;
 	System_Init();
 	FileSystem();
 	return 0;
