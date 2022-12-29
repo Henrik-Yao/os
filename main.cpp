@@ -13,46 +13,46 @@ using namespace std;
 #include <stdio.h>
 #include <conio.h>
 
-#define FILEAREASIZE 900	 // ÎÄ¼şÇø´ÅÅÌ¿éÊıÁ¿
-#define SWAPAREASIZE 124	 // ½»»»Çø´ÅÅÌ¿éÊıÁ¿
-#define BLOCKSIZE 320		 // ´ÅÅÌ¿é´óĞ¡320bit
-#define BLOCKADDRCOUNT 32	 // Ò»¸ö´ÅÅÌ¿é×î¶à¿ÉÒÔÈİÄÉ32¸öÎïÀí¿éºÅ
-#define ADDRSIZE 10			 // Ò»¸öÎïÀí¿éºÅÕ¼ÓÃ10bit
-#define MIXFILE 32 * 32 * 40 // ×î´óÎÄ¼ş´óĞ¡ 32*32*40B
-#define MAXFILE 32 * 32 * 40 // ×î´óÎÄ¼ş´óĞ¡ 32*32*40B
-bool bitMap[30][30];		 // Î»Ê¾Í¼
+#define FILEAREASIZE 900	 // æ–‡ä»¶åŒºç£ç›˜å—æ•°é‡
+#define SWAPAREASIZE 124	 // äº¤æ¢åŒºç£ç›˜å—æ•°é‡
+#define BLOCKSIZE 320		 // ç£ç›˜å—å¤§å°320bit
+#define BLOCKADDRCOUNT 32	 // ä¸€ä¸ªç£ç›˜å—æœ€å¤šå¯ä»¥å®¹çº³32ä¸ªç‰©ç†å—å·
+#define ADDRSIZE 10			 // ä¸€ä¸ªç‰©ç†å—å·å ç”¨10bit
+#define MIXFILE 32 * 32 * 40 // æœ€å¤§æ–‡ä»¶å¤§å° 32*32*40B
+#define MAXFILE 32 * 32 * 40 // æœ€å¤§æ–‡ä»¶å¤§å° 32*32*40B
+bool bitMap[30][30];		 // ä½ç¤ºå›¾
 int strb[MAXFILE * 8] = {0};
 
-const int num = 64; // ×ÜÄÚ´æ¿é¸öÊı
-int blockNum;		// ÎïÀí¿é×ÜÊı
-int pageNum;		// ÎïÀí¿éÖĞµÄÒ³ÃæÊıÁ¿
+const int num = 64; // æ€»å†…å­˜å—ä¸ªæ•°
+int blockNum;		// ç‰©ç†å—æ€»æ•°
+int pageNum;		// ç‰©ç†å—ä¸­çš„é¡µé¢æ•°é‡
 
 struct PCB
-{					   // Ò³±íÏî
-	int id;			   // ÄÚ´æ¿éid
-	int fileStartAddr; // ËùÊôÎÄ¼ş´ÅÅÌÆğÊ¼µØÖ·
-	int disk_id;	   // ÎïÀí¿éºÅ
+{					   // é¡µè¡¨é¡¹
+	int id;			   // å†…å­˜å—id
+	int fileStartAddr; // æ‰€å±æ–‡ä»¶ç£ç›˜èµ·å§‹åœ°å€
+	int disk_id;	   // ç‰©ç†å—å·
 };
 
 typedef struct FCB
 {
-	string username;   // ÓÃ»§Ãû
-	string fileName;   // ÎÄ¼şÃû
-	int fileSize;	   // ÎÄ¼ş´óĞ¡
-	bool fileNature;   // ÎÄ¼şÊôĞÔ 0 Ö»¶Á 1 ¿É¶Á¿ÉĞ´
-	string createTime; // ÎÄ¼ş´´½¨Ê±¼ä
-	int fileStartAddr; // ÎÄ¼şÆğÊ¼µØÖ·
-	int fileIndexAddr; // ÎÄ¼şË÷ÒıµØÖ·
+	string username;   // ç”¨æˆ·å
+	string fileName;   // æ–‡ä»¶å
+	int fileSize;	   // æ–‡ä»¶å¤§å°
+	bool fileNature;   // æ–‡ä»¶å±æ€§ 0 åªè¯» 1 å¯è¯»å¯å†™
+	string createTime; // æ–‡ä»¶åˆ›å»ºæ—¶é—´
+	int fileStartAddr; // æ–‡ä»¶èµ·å§‹åœ°å€
+	int fileIndexAddr; // æ–‡ä»¶ç´¢å¼•åœ°å€
 	FCB *next;
 } FCB, *FCBptr;
 
 typedef struct MCB
-{ // ÄÚ´æ¿ØÖÆ¿é
+{ // å†…å­˜æ§åˆ¶å—
 	PCB pcb;
-	int pageID;			  // Ò³ÃæºÅ
-	bool data[BLOCKSIZE]; // pagecontent£¨´óĞ¡320bit£©
-	int stayTime;		  // Ò³ÃæÔÚÎïÀí¿éÖĞµÄÍ£ÁôÊ±¼ä£¨ÓëÎïÀí¿éID¶ÔÓ¦£©
-	bool work;			  // ÊÇ·ñ¿ÕÏĞ 0¿Õ 1²»¿Õ
+	int pageID;			  // é¡µé¢å·
+	bool data[BLOCKSIZE]; // pagecontentï¼ˆå¤§å°320bitï¼‰
+	int stayTime;		  // é¡µé¢åœ¨ç‰©ç†å—ä¸­çš„åœç•™æ—¶é—´ï¼ˆä¸ç‰©ç†å—IDå¯¹åº”ï¼‰
+	bool work;			  // æ˜¯å¦ç©ºé—² 0ç©º 1ä¸ç©º
 } MCB;
 
 MCB b[num];
@@ -60,14 +60,14 @@ MCB b[num];
 struct SwapReadData
 {
 	FCB fcb;
-	int blockIndex[FILEAREASIZE]; // ÎïÀí¿éºÅ
-	int fileData[32][BLOCKSIZE];  // ÎÄ¼şĞÅÏ¢ ¶ş½øÖÆ
-	string fileContent;			  // ÎÄ¼şÄÚÈİ
+	int blockIndex[FILEAREASIZE]; // ç‰©ç†å—å·
+	int fileData[32][BLOCKSIZE];  // æ–‡ä»¶ä¿¡æ¯ äºŒè¿›åˆ¶
+	string fileContent;			  // æ–‡ä»¶å†…å®¹
 };
 struct SwapWriteData
 {
 	FCB fcb;
-	bool IsputDown; // ÅĞ¶ÏÎÄ¼şËùĞè´ÅÅÌ¿éÊÇ·ñ³¬³öÁË¿ÕÏĞ´ÅÅÌ¿éµÄÊıÁ¿ 0 Î´³¬³ö 1 ³¬³ö
+	bool IsputDown; // åˆ¤æ–­æ–‡ä»¶æ‰€éœ€ç£ç›˜å—æ˜¯å¦è¶…å‡ºäº†ç©ºé—²ç£ç›˜å—çš„æ•°é‡ 0 æœªè¶…å‡º 1 è¶…å‡º
 };
 
 struct BLOCK
@@ -75,20 +75,20 @@ struct BLOCK
 	bool data[BLOCKSIZE]{};
 	bool flag = 0;
 };
-BLOCK file_data[FILEAREASIZE]; // ÎÄ¼şÇø
+BLOCK file_data[FILEAREASIZE]; // æ–‡ä»¶åŒº
 struct SWAP
 {
-	int fileStartAddr = -1; // ËùÊôÎÄ¼şµÄÆğÊ¼ÎïÀí¿éºÅ Í¬Ò»¸öÎÄ¼şÒ»Ñù
-	bool addr[10]{};		// ¶Ô»»ÇøÓëÎÄ¼şÇøÎïÀí¿éºÅÓ³Éä
-	bool data[BLOCKSIZE]{}; // Êı¾İ
-	bool flag = 0;			// ÊÇ·ñ¿ÕÏĞ flag = 1 ²»¿ÕÏĞ
-	bool IsInFileArea = 0;	// ÊÇ·ñĞ´ÈëÎÄ¼şÇø 0 ´ú±íÎ´Ğ´Èë»òÕß±»ĞŞ¸Ä 1 ´ú±íÔÚÎÄ¼şÇø²¢ÇÒÊı¾İÒ»ÖÂ
+	int fileStartAddr = -1; // æ‰€å±æ–‡ä»¶çš„èµ·å§‹ç‰©ç†å—å· åŒä¸€ä¸ªæ–‡ä»¶ä¸€æ ·
+	bool addr[10]{};		// å¯¹æ¢åŒºä¸æ–‡ä»¶åŒºç‰©ç†å—å·æ˜ å°„
+	bool data[BLOCKSIZE]{}; // æ•°æ®
+	bool flag = 0;			// æ˜¯å¦ç©ºé—² flag = 1 ä¸ç©ºé—²
+	bool IsInFileArea = 0;	// æ˜¯å¦å†™å…¥æ–‡ä»¶åŒº 0 ä»£è¡¨æœªå†™å…¥æˆ–è€…è¢«ä¿®æ”¹ 1 ä»£è¡¨åœ¨æ–‡ä»¶åŒºå¹¶ä¸”æ•°æ®ä¸€è‡´
 };
-SWAP swap_data[SWAPAREASIZE]; // ¶Ô»»Çø
+SWAP swap_data[SWAPAREASIZE]; // å¯¹æ¢åŒº
 struct FileInformation
 {
-	int indexBlock;	   // Ë÷Òı¿éºÅ
-	int fileStartAddr; // ÎÄ¼şÆğÊ¼ÎïÀí¿éºÅ
+	int indexBlock;	   // ç´¢å¼•å—å·
+	int fileStartAddr; // æ–‡ä»¶èµ·å§‹ç‰©ç†å—å·
 };
 struct SwapInformation
 {
@@ -118,86 +118,86 @@ MFDptr MFD_Link = NULL;
 // UFDptr UFD_Link = NULL;
 FCBptr FCB_Link = NULL;
 AFDptr AFD_Link = NULL;
-string UserName; // ´æ·Åµ±Ç°ÓÃ»§µÄÓÃ»§Ãû
+string UserName; // å­˜æ”¾å½“å‰ç”¨æˆ·çš„ç”¨æˆ·å
 
-// ÎªË÷Òı(´ÅÅÌ)±íÏî¸³ÖµÎïÀí¿éºÅ
+// ä¸ºç´¢å¼•(ç£ç›˜)è¡¨é¡¹èµ‹å€¼ç‰©ç†å—å·
 int indexBlockAssignment(int index, int n);
-// Îª´ÅÅÌ¿é¸³Öµ Ã¿320bit
+// ä¸ºç£ç›˜å—èµ‹å€¼ æ¯320bit
 void dataBlockAssignment(int idx, int n, int SwapAddr);
-// Ê®½øÖÆ×ª»»Îª¶ş½øÖÆ
+// åè¿›åˆ¶è½¬æ¢ä¸ºäºŒè¿›åˆ¶
 vector<int> decimalismToBinary(int num_d);
-// É¾³ı½»»»ÇøÖĞµÄÒ»¸öÎÄ¼ş
+// åˆ é™¤äº¤æ¢åŒºä¸­çš„ä¸€ä¸ªæ–‡ä»¶
 void deleteSwapAreaFile();
-// ×Ö·û´®×ª»»Îª¶ş½øÖÆ
+// å­—ç¬¦ä¸²è½¬æ¢ä¸ºäºŒè¿›åˆ¶
 string strToBinary(string &str);
-// ¶ş½øÖÆ×ª»»Îª×Ö·û´®
+// äºŒè¿›åˆ¶è½¬æ¢ä¸ºå­—ç¬¦ä¸²
 string binaryToStr(string str_b);
-// Êä³öÎ»Ê¾Í¼
+// è¾“å‡ºä½ç¤ºå›¾
 void printBitMap();
-// »ñÈ¡¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿
+// è·å–ç©ºé—²ç£ç›˜å—æ•°é‡
 int freeAreaCount();
-// Î»Ê¾Í¼·¨»ñÈ¡Ò»¸ö¿ÕÏĞ´ÅÅÌ¿éµÄÎïÀí¿éºÅ ²»Á¬Ğø·ÖÅä
+// ä½ç¤ºå›¾æ³•è·å–ä¸€ä¸ªç©ºé—²ç£ç›˜å—çš„ç‰©ç†å—å· ä¸è¿ç»­åˆ†é…
 int freeAreaIndex();
-// »ñÈ¡Á¬ĞøµÄ¿ÕÏĞ½»»»Çø´ÅÅÌ¿éÆğÊ¼¿éºÅºÍÊıÁ¿
+// è·å–è¿ç»­çš„ç©ºé—²äº¤æ¢åŒºç£ç›˜å—èµ·å§‹å—å·å’Œæ•°é‡
 SwapInformation SwapAreaCount(int amount);
-// É¾³ı½»»»ÇøµÄÒ»¸öÎÄ¼şÕ¼ÓÃµÄÈ«²¿´ÅÅÌ¿é
+// åˆ é™¤äº¤æ¢åŒºçš„ä¸€ä¸ªæ–‡ä»¶å ç”¨çš„å…¨éƒ¨ç£ç›˜å—
 void deleteSwapAreaFile();
-// ½»»»ÇøĞ´ÈëÊı¾İ ½öµÚÒ»´Î¿ÕÎÄ¼şĞ´ÈëÊı¾İÊ±µ÷ÓÃ
+// äº¤æ¢åŒºå†™å…¥æ•°æ® ä»…ç¬¬ä¸€æ¬¡ç©ºæ–‡ä»¶å†™å…¥æ•°æ®æ—¶è°ƒç”¨
 SwapWriteData putfileData(FCB fcb, string str);
-// ÎÄ¼şÇøĞ´ÈëÊı¾İ²¢½¨Á¢¶ş¼¶Ë÷Òı
+// æ–‡ä»¶åŒºå†™å…¥æ•°æ®å¹¶å»ºç«‹äºŒçº§ç´¢å¼•
 FileInformation secondaryIndex(int fileIndexAddr, int amount, int startAddr);
-// ½»»»Çø¶Á³öÊı¾İ
+// äº¤æ¢åŒºè¯»å‡ºæ•°æ®
 SwapReadData getfileData(FCB fcb);
-// É¾³ıÖ¸¶¨ÎÄ¼şÊı¾İ
+// åˆ é™¤æŒ‡å®šæ–‡ä»¶æ•°æ®
 void deletefileData(int firstStartAddr, int indexBlock);
-// ¸ñÊ½»¯
+// æ ¼å¼åŒ–
 void format();
-// ĞŞ¸ÄÎÄ¼ş
+// ä¿®æ”¹æ–‡ä»¶
 SwapWriteData amendFile(FCB fcb, string fileContent);
-// Ğ´ÈëÊı¾İ Ò»¸ö¿éÎªµ¥Î»
+// å†™å…¥æ•°æ® ä¸€ä¸ªå—ä¸ºå•ä½
 void putBlockData(PCB pcb, string BlockContent);
-// ´´½¨Ò»¸ö¿ÕÎÄ¼ş
+// åˆ›å»ºä¸€ä¸ªç©ºæ–‡ä»¶
 int createFreeFile();
 
-void InitMCB();																 // ³õÊ¼»¯64¿éÄÚ´æ¿é
-PCB *InitPCB(int filesize);													 // Ã¿¶ÁÒ»¸öÎÄ¼şµ½ÄÚ´æ¶¼Òª³õÊ¼»¯ÆäÒ³±í
-int exist(int curpage, int fileStartAddr);									 // ¿´µ±Ç°ÎÄ¼şµÄµ±Ç°Ò³ÃæÔÚ²»ÔÚÄÚ´æÖĞ,ÔÚµÄ»°·µ»ØÎïÀí¿éºÅ
-PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], int disk_data[64][320]); // ÎªÎÄ¼ş·ÖÅäÄÚ´æ¿Õ¼ä£¬·µ»ØÒ³±í
-void ShowPage();															 // ÄÚ´æ¿éºÅ  ËùÊôÎÄ¼şÍâ´æ¿éºÅ   Ò³ÃæºÅ  ¶à¾ÃÃ»±»·ÃÎÊ
-void ShowPageContent();														 // ´Ëº¯ÊıÓÃÓÚ×Ô²éÄÚÈİ£¬ÄÚ´æ¿éºÅ:  ËùÊôÎÄ¼şÍâ´æ¿éºÅ   Ò³ÃæºÅ ÄÚÈİ
-// void ShowStayTime();//ÄÚ´æ¿éºÅ:¶à¾ÃÃ»±»·ÃÎÊ
-int GetLongestStay();									// »ñÈ¡ÔÚÎïÀí¿éÖĞÍ£ÁôÊ±¼ä×î³¤µÄÒ³ÃæËùÔÚÎïÀí¿éºÅ
-void Delete(FCB f);										// ¹Ø±ÕÎÄ¼ş£¨½ö¶Ô¶ÁÏß³Ì£©»ØÊÕÄÚ´æºÍ¸ÃÏß³ÌµÄÒ³±í
-PCB *ReadToMemory(SwapReadData f_Information);			// ¶Á£¬½«ÎÄ¼ş´æÈëÄÚ´æ£¬·µ»Ø¸ÃÎÄ¼şÒ³±í
-SwapWriteData WriteToMandD(SwapReadData f_Information); // Ğ´£¬¶ÔÒ»¸öÎÄ¼ş½øĞĞĞ´²Ù×÷£¬Ğ´»Ø´ÅÅÌ,·µ»ØĞ´»ØµÄÊı¾İ
+void InitMCB();																 // åˆå§‹åŒ–64å—å†…å­˜å—
+PCB *InitPCB(int filesize);													 // æ¯è¯»ä¸€ä¸ªæ–‡ä»¶åˆ°å†…å­˜éƒ½è¦åˆå§‹åŒ–å…¶é¡µè¡¨
+int exist(int curpage, int fileStartAddr);									 // çœ‹å½“å‰æ–‡ä»¶çš„å½“å‰é¡µé¢åœ¨ä¸åœ¨å†…å­˜ä¸­,åœ¨çš„è¯è¿”å›ç‰©ç†å—å·
+PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], int disk_data[64][320]); // ä¸ºæ–‡ä»¶åˆ†é…å†…å­˜ç©ºé—´ï¼Œè¿”å›é¡µè¡¨
+void ShowPage();															 // å†…å­˜å—å·  æ‰€å±æ–‡ä»¶å¤–å­˜å—å·   é¡µé¢å·  å¤šä¹…æ²¡è¢«è®¿é—®
+void ShowPageContent();														 // æ­¤å‡½æ•°ç”¨äºè‡ªæŸ¥å†…å®¹ï¼Œå†…å­˜å—å·:  æ‰€å±æ–‡ä»¶å¤–å­˜å—å·   é¡µé¢å· å†…å®¹
+// void ShowStayTime();//å†…å­˜å—å·:å¤šä¹…æ²¡è¢«è®¿é—®
+int GetLongestStay();									// è·å–åœ¨ç‰©ç†å—ä¸­åœç•™æ—¶é—´æœ€é•¿çš„é¡µé¢æ‰€åœ¨ç‰©ç†å—å·
+void Delete(FCB f);										// å…³é—­æ–‡ä»¶ï¼ˆä»…å¯¹è¯»çº¿ç¨‹ï¼‰å›æ”¶å†…å­˜å’Œè¯¥çº¿ç¨‹çš„é¡µè¡¨
+PCB *ReadToMemory(SwapReadData f_Information);			// è¯»ï¼Œå°†æ–‡ä»¶å­˜å…¥å†…å­˜ï¼Œè¿”å›è¯¥æ–‡ä»¶é¡µè¡¨
+SwapWriteData WriteToMandD(SwapReadData f_Information); // å†™ï¼Œå¯¹ä¸€ä¸ªæ–‡ä»¶è¿›è¡Œå†™æ“ä½œï¼Œå†™å›ç£ç›˜,è¿”å›å†™å›çš„æ•°æ®
 
 /*
-´´½¨¿ÕÎÄ¼ş²¢Ğ´ÈëÊı¾İ
-1. ´´½¨¿ÕÎÄ¼ş µ÷ÓÃ createFreeFile();¡Ì
-2. Ğ´ÈëÊı¾İ   µ÷ÓÃ putfileData(FCB fcb, string str);
+åˆ›å»ºç©ºæ–‡ä»¶å¹¶å†™å…¥æ•°æ®
+1. åˆ›å»ºç©ºæ–‡ä»¶ è°ƒç”¨ createFreeFile();âˆš
+2. å†™å…¥æ•°æ®   è°ƒç”¨ putfileData(FCB fcb, string str);
 */
 
 /*
-Ö»¶ÁÎÄ¼ş²Ù×÷Á÷³Ì£º
-1. ½«ÎÄ¼şµ÷ÈëÄÚ´æ µ÷ÓÃ getfileData(FCB fcb);
-2. Ïß³Ì²Ù×÷½áÊøºó Ö±½ÓÊÍ·ÅÄÚ´æ ÎŞĞèÔÙĞ´ÈëÍâ´æ
+åªè¯»æ–‡ä»¶æ“ä½œæµç¨‹ï¼š
+1. å°†æ–‡ä»¶è°ƒå…¥å†…å­˜ è°ƒç”¨ getfileData(FCB fcb);
+2. çº¿ç¨‹æ“ä½œç»“æŸå ç›´æ¥é‡Šæ”¾å†…å­˜ æ— éœ€å†å†™å…¥å¤–å­˜
 */
 
 /*
-ĞŞ¸Ä(¿É¶Á¿ÉĞ´)ÎÄ¼ş²Ù×÷Á÷³Ì
-1. ½«ÎÄ¼şµ÷ÈëÄÚ´æ µ÷ÓÃ getfileData(FCB fcb);
-2. ÔÚÄÚ´æÖĞÖ´ĞĞĞ´²Ù×÷
-3. Ïß³Ì²Ù×÷½áÊø   µ÷ÓÃ amendFile(FCB fcb, string fileContent);
+ä¿®æ”¹(å¯è¯»å¯å†™)æ–‡ä»¶æ“ä½œæµç¨‹
+1. å°†æ–‡ä»¶è°ƒå…¥å†…å­˜ è°ƒç”¨ getfileData(FCB fcb);
+2. åœ¨å†…å­˜ä¸­æ‰§è¡Œå†™æ“ä½œ
+3. çº¿ç¨‹æ“ä½œç»“æŸ   è°ƒç”¨ amendFile(FCB fcb, string fileContent);
 */
 
 /*
-×¢Òâ£ºputfileData ºÍ amendFile º¯Êı·µ»ØÖµÖĞ¶¼ÓĞÒ»¸ö swd.IsPutDown²ÎÊı
-	 ¸Ã²ÎÊıËµÃ÷ÁËÎÄ¼şÇøÊÇ·ñ»¹ÓĞ×ã¹»µÄ¿ÕÏĞ¿éÓÃÓÚĞ´ÈëÊı¾İ»òÕßĞ´ÈëĞŞ¸ÄºóµÄÊı¾İ
-	 swd.IsputDown == 1 ËµÃ÷¿ÕÏĞÇø²»¹» ´ËÊ±º¯ÊıÖ±½Ó½áÊø ĞèÒªĞ´ÈëµÄÊı¾İ»òÕßĞŞ¸ÄºóµÄÊı¾İ²¢²»»áĞ´ÈëÍâ´æ
-	 swd.IsputDown == 0 ËµÃ÷¿ÕÏĞÇø×ã¹»
+æ³¨æ„ï¼šputfileData å’Œ amendFile å‡½æ•°è¿”å›å€¼ä¸­éƒ½æœ‰ä¸€ä¸ª swd.IsPutDownå‚æ•°
+	 è¯¥å‚æ•°è¯´æ˜äº†æ–‡ä»¶åŒºæ˜¯å¦è¿˜æœ‰è¶³å¤Ÿçš„ç©ºé—²å—ç”¨äºå†™å…¥æ•°æ®æˆ–è€…å†™å…¥ä¿®æ”¹åçš„æ•°æ®
+	 swd.IsputDown == 1 è¯´æ˜ç©ºé—²åŒºä¸å¤Ÿ æ­¤æ—¶å‡½æ•°ç›´æ¥ç»“æŸ éœ€è¦å†™å…¥çš„æ•°æ®æˆ–è€…ä¿®æ”¹åçš„æ•°æ®å¹¶ä¸ä¼šå†™å…¥å¤–å­˜
+	 swd.IsputDown == 0 è¯´æ˜ç©ºé—²åŒºè¶³å¤Ÿ
 */
 
-// ×Ö·û´®×ª»»Îª¶ş½øÖÆ
+// å­—ç¬¦ä¸²è½¬æ¢ä¸ºäºŒè¿›åˆ¶
 string strToBinary(string &str)
 {
 	string binary_string;
@@ -208,10 +208,10 @@ string strToBinary(string &str)
 	}
 	return binary_string;
 }
-// ¶ş½øÖÆ×ª»»Îª×Ö·û´®
+// äºŒè¿›åˆ¶è½¬æ¢ä¸ºå­—ç¬¦ä¸²
 string binaryToStr(string str_b)
 {
-	// Ã¿°ËÎ»×ª»¯³ÉÊ®½øÖÆ£¬È»ºó½«Êı×Ö½á¹û×ª»¯³É×Ö·û
+	// æ¯å…«ä½è½¬åŒ–æˆåè¿›åˆ¶ï¼Œç„¶åå°†æ•°å­—ç»“æœè½¬åŒ–æˆå­—ç¬¦
 	string str;
 	int sum;
 	for (int i = 0; i < str_b.size(); i += 8)
@@ -226,7 +226,7 @@ string binaryToStr(string str_b)
 	}
 	return str;
 }
-// Êä³öÎ»Ê¾Í¼
+// è¾“å‡ºä½ç¤ºå›¾
 void printBitMap()
 {
 	for (int i = 0; i < 30; i++)
@@ -239,7 +239,7 @@ void printBitMap()
 	}
 }
 
-// »ñÈ¡¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿
+// è·å–ç©ºé—²ç£ç›˜å—æ•°é‡
 int freeAreaCount()
 {
 	int count = 0;
@@ -256,7 +256,7 @@ int freeAreaCount()
 	return count;
 }
 
-// Î»Ê¾Í¼·¨»ñÈ¡Ò»¸ö¿ÕÏĞ´ÅÅÌ¿éµÄÎïÀí¿éºÅ ²»Á¬Ğø·ÖÅä
+// ä½ç¤ºå›¾æ³•è·å–ä¸€ä¸ªç©ºé—²ç£ç›˜å—çš„ç‰©ç†å—å· ä¸è¿ç»­åˆ†é…
 int freeAreaIndex()
 {
 	int idx = -1;
@@ -272,23 +272,23 @@ int freeAreaIndex()
 	return idx;
 }
 
-// ÎÄ¼şÇøĞ´ÈëÊı¾İ²¢½¨Á¢¶ş¼¶Ë÷Òı
+// æ–‡ä»¶åŒºå†™å…¥æ•°æ®å¹¶å»ºç«‹äºŒçº§ç´¢å¼•
 FileInformation secondaryIndex(int fileIndexAddr, int amount, int startAddr)
 {
 	FileInformation fi;
-	int idx_index = -1,				// Ë÷Òı¿éºÅ
-		idx_first = -1,				// Ò»¼¶Ë÷Òı¿éºÅ
-		idx_second = -1;			// ¶ş¼¶Ë÷Òı¿éºÅ
-	int secondIndexBlockCount = -1; // ÓÃÓÚ´æ´¢ÎïÀí¿éºÅµÄË÷Òı¿éÊıÄ¿(Ò»¼¶Ë÷Òı¿é¹Ì¶¨Ò»¸ö£¬ËùÒÔÖ»Í³¼Æ¶ş¼¶Ë÷Òı¿é)
-	int total = 0;					// ËùĞè´ÅÅÌ¿éÊıÁ¿
-	int swapAddr = startAddr;		// ½»»»ÇøµØÖ·
+	int idx_index = -1,				// ç´¢å¼•å—å·
+		idx_first = -1,				// ä¸€çº§ç´¢å¼•å—å·
+		idx_second = -1;			// äºŒçº§ç´¢å¼•å—å·
+	int secondIndexBlockCount = -1; // ç”¨äºå­˜å‚¨ç‰©ç†å—å·çš„ç´¢å¼•å—æ•°ç›®(ä¸€çº§ç´¢å¼•å—å›ºå®šä¸€ä¸ªï¼Œæ‰€ä»¥åªç»Ÿè®¡äºŒçº§ç´¢å¼•å—)
+	int total = 0;					// æ‰€éœ€ç£ç›˜å—æ•°é‡
+	int swapAddr = startAddr;		// äº¤æ¢åŒºåœ°å€
 
 	if (amount % BLOCKADDRCOUNT == 0)
 		secondIndexBlockCount = amount / BLOCKADDRCOUNT;
 	else
 		secondIndexBlockCount = amount / BLOCKADDRCOUNT + 1;
 	idx_index = fileIndexAddr;
-	fi.indexBlock = idx_index; // Ë÷Òı¿éºÅ
+	fi.indexBlock = idx_index; // ç´¢å¼•å—å·
 
 	for (int i = 0; i < secondIndexBlockCount; i++)
 	{
@@ -332,7 +332,7 @@ FileInformation secondaryIndex(int fileIndexAddr, int amount, int startAddr)
 	}
 	return fi;
 }
-// Ê®½øÖÆ×ª»»Îª¶ş½øÖÆ
+// åè¿›åˆ¶è½¬æ¢ä¸ºäºŒè¿›åˆ¶
 vector<int> decimalismToBinary(int num_d)
 {
 	int temp;
@@ -345,10 +345,10 @@ vector<int> decimalismToBinary(int num_d)
 	} while (num_d != 0);
 	return num_b;
 }
-// ÎªË÷Òı(´ÅÅÌ)±íÏî¸³ÖµÎïÀí¿éºÅ
+// ä¸ºç´¢å¼•(ç£ç›˜)è¡¨é¡¹èµ‹å€¼ç‰©ç†å—å·
 int indexBlockAssignment(int index, int n)
 {
-	// ±êÃ÷¸Ã´ÅÅÌ¿é²»¿ÕÏĞ
+	// æ ‡æ˜è¯¥ç£ç›˜å—ä¸ç©ºé—²
 	if (file_data[index].flag == 0)
 	{
 		file_data[index].flag = 1;
@@ -366,7 +366,7 @@ int indexBlockAssignment(int index, int n)
 	}
 	return idx;
 }
-// Îª´ÅÅÌ¿é¸³Öµ Ã¿320bit
+// ä¸ºç£ç›˜å—èµ‹å€¼ æ¯320bit
 void dataBlockAssignment(int idx, int n, int SwapAddr)
 {
 
@@ -384,7 +384,7 @@ void dataBlockAssignment(int idx, int n, int SwapAddr)
 	}
 }
 
-// »ñÈ¡Á¬ĞøµÄ¿ÕÏĞ½»»»Çø´ÅÅÌ¿éÆğÊ¼¿éºÅºÍÊıÁ¿
+// è·å–è¿ç»­çš„ç©ºé—²äº¤æ¢åŒºç£ç›˜å—èµ·å§‹å—å·å’Œæ•°é‡
 SwapInformation SwapAreaCount(int amount)
 {
 	SwapInformation si;
@@ -411,7 +411,7 @@ SwapInformation SwapAreaCount(int amount)
 	si.count = count;
 	return si;
 }
-// É¾³ı½»»»ÇøµÄÒ»¸öÎÄ¼şÕ¼ÓÃµÄÈ«²¿´ÅÅÌ¿é
+// åˆ é™¤äº¤æ¢åŒºçš„ä¸€ä¸ªæ–‡ä»¶å ç”¨çš„å…¨éƒ¨ç£ç›˜å—
 void deleteSwapAreaFile()
 {
 	for (int i = 0; i < SWAPAREASIZE; i++)
@@ -439,7 +439,7 @@ void deleteSwapAreaFile()
 		}
 	}
 }
-// É¾³ı½»»»ÇøÖ¸¶¨ÎÄ¼şÕ¼ÓÃµÄÈ«²¿´ÅÅÌ¿é
+// åˆ é™¤äº¤æ¢åŒºæŒ‡å®šæ–‡ä»¶å ç”¨çš„å…¨éƒ¨ç£ç›˜å—
 void deleteAppointSwapAreaFile(int fileStartAddr)
 {
 	for (int i = 0; i < SWAPAREASIZE; i++)
@@ -466,12 +466,12 @@ void deleteAppointSwapAreaFile(int fileStartAddr)
 		}
 	}
 }
-// ½»»»ÇøĞ´ÈëÊı¾İ
+// äº¤æ¢åŒºå†™å…¥æ•°æ®
 SwapWriteData putfileData(FCB fcb, string str)
 {
 	SwapWriteData swd;
 	swd.fcb = fcb;
-	int amount; // ÎÄ¼şÕ¼ÓÃ´ÅÅÌÊıÄ¿
+	int amount; // æ–‡ä»¶å ç”¨ç£ç›˜æ•°ç›®
 	string str_b = strToBinary(str);
 	for (int i = 0; i < str_b.size(); i++)
 	{
@@ -487,14 +487,14 @@ SwapWriteData putfileData(FCB fcb, string str)
 	swd.fcb.fileSize = fileSize;
 	swd.fcb.fileStartAddr = -1;
 	swd.fcb.fileIndexAddr = -1;
-	int freeBlockCount = freeAreaCount(); // ¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿
-	int indexBlockCount = -1;			  // ËùĞèË÷Òı¿éÊıÄ¿
+	int freeBlockCount = freeAreaCount(); // ç©ºé—²ç£ç›˜å—æ•°é‡
+	int indexBlockCount = -1;			  // æ‰€éœ€ç´¢å¼•å—æ•°ç›®
 
 	if (amount % BLOCKADDRCOUNT == 0)
 		indexBlockCount = amount / BLOCKADDRCOUNT + 1;
 	else
 		indexBlockCount = amount / BLOCKADDRCOUNT + 2;
-	// ÅĞ¶ÏËùĞè´ÅÅÌÊıÊÇ·ñ³¬³ö¿ÕÏĞ´ÅÅÌÊı
+	// åˆ¤æ–­æ‰€éœ€ç£ç›˜æ•°æ˜¯å¦è¶…å‡ºç©ºé—²ç£ç›˜æ•°
 	if (freeBlockCount < indexBlockCount + amount)
 		swd.IsputDown = 1;
 	else
@@ -504,13 +504,13 @@ SwapWriteData putfileData(FCB fcb, string str)
 		return swd;
 
 	/*
-	ËÄÖÖÇé¿ö:
-	1. fi.filesize <= 32*32*40 &  fi.IsputDown = 0 ÎÄ¼ş´óĞ¡Õı³£ÇÒ¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿¹»
-	2. fi.filesize > 32*32*40 &  fi.IsputDown = 0 ÎÄ¼ş¹ı´ó,µ«¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿¹»
-	3. fi.filesize <= 32*32*40 &  fi.IsputDown = 1 ÎÄ¼ş´óĞ¡Õı³£,µ«¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿²»¹»
-	4. fi.filesize > 32*32*40 &  fi.IsputDown = 1 ÎÄ¼ş¹ı´óÇÒ¿ÕÏĞ´ÅÅÌ¿éÊıÁ¿²»¹»
+	å››ç§æƒ…å†µ:
+	1. fi.filesize <= 32*32*40 &  fi.IsputDown = 0 æ–‡ä»¶å¤§å°æ­£å¸¸ä¸”ç©ºé—²ç£ç›˜å—æ•°é‡å¤Ÿ
+	2. fi.filesize > 32*32*40 &  fi.IsputDown = 0 æ–‡ä»¶è¿‡å¤§,ä½†ç©ºé—²ç£ç›˜å—æ•°é‡å¤Ÿ
+	3. fi.filesize <= 32*32*40 &  fi.IsputDown = 1 æ–‡ä»¶å¤§å°æ­£å¸¸,ä½†ç©ºé—²ç£ç›˜å—æ•°é‡ä¸å¤Ÿ
+	4. fi.filesize > 32*32*40 &  fi.IsputDown = 1 æ–‡ä»¶è¿‡å¤§ä¸”ç©ºé—²ç£ç›˜å—æ•°é‡ä¸å¤Ÿ
 	*/
-	// ÎÄ¼şÆğÊ¼ÎïÀí¿éºÅÎª-1´ú±íÕâ¸öÎÄ¼şÒÑ¾­´´½¨µ«ÊÇ»¹Ã»ÓĞÄÚÈİ
+	// æ–‡ä»¶èµ·å§‹ç‰©ç†å—å·ä¸º-1ä»£è¡¨è¿™ä¸ªæ–‡ä»¶å·²ç»åˆ›å»ºä½†æ˜¯è¿˜æ²¡æœ‰å†…å®¹
 	SwapInformation si = SwapAreaCount(amount);
 	int startAddr = si.startAddr;
 	FileInformation fi = secondaryIndex(fcb.fileIndexAddr, amount, startAddr);
@@ -526,7 +526,7 @@ SwapWriteData putfileData(FCB fcb, string str)
 	return swd;
 }
 
-// ½»»»Çø¶Á³öÊı¾İ
+// äº¤æ¢åŒºè¯»å‡ºæ•°æ®
 SwapReadData getfileData(FCB fcb)
 {
 	SwapReadData srd;
@@ -536,7 +536,7 @@ SwapReadData getfileData(FCB fcb)
 		amount = fcb.fileSize / (BLOCKSIZE / 8);
 	else
 		amount = fcb.fileSize / (BLOCKSIZE / 8) + 1;
-	// Èç¹û½»»»Çø´æÔÚ¸ÃÎÄ¼şÊı¾İ
+	// å¦‚æœäº¤æ¢åŒºå­˜åœ¨è¯¥æ–‡ä»¶æ•°æ®
 	int y = 0;
 	for (int i = 0; i < SWAPAREASIZE; i++)
 	{
@@ -563,9 +563,9 @@ SwapReadData getfileData(FCB fcb)
 			return srd;
 		}
 	}
-	// ÒÔÏÂÎª½»»»Çø²»´æÔÚÎÄ¼şÊı¾İ
+	// ä»¥ä¸‹ä¸ºäº¤æ¢åŒºä¸å­˜åœ¨æ–‡ä»¶æ•°æ®
 	vector<int> idxs;
-	// »ñÈ¡È«²¿¶ş¼¶Ë÷Òı¿é´æ·ÅµÄÎïÀí¿éºÅ
+	// è·å–å…¨éƒ¨äºŒçº§ç´¢å¼•å—å­˜æ”¾çš„ç‰©ç†å—å·
 	for (int i = 0; i < BLOCKADDRCOUNT; i++)
 	{
 		int idx_first = 0;
@@ -590,7 +590,7 @@ SwapReadData getfileData(FCB fcb)
 	string fileData = "";
 	SwapInformation si = SwapAreaCount(amount);
 	int startAddr = si.startAddr, count = si.count;
-	int swapAddr = startAddr; // ½»»»ÇøÎïÀí¿éºÅ
+	int swapAddr = startAddr; // äº¤æ¢åŒºç‰©ç†å—å·
 	for (int i = startAddr; i < startAddr + count; i++)
 	{
 		swap_data[i].fileStartAddr = fcb.fileStartAddr;
@@ -627,10 +627,10 @@ SwapReadData getfileData(FCB fcb)
 	return srd;
 }
 
-// É¾³ıÖ¸¶¨ÎÄ¼şÊı¾İ
+// åˆ é™¤æŒ‡å®šæ–‡ä»¶æ•°æ®
 void deletefileData(int firstStartAddr, int indexBlock)
 {
-	// É¾³ı½»»»ÇøÊı¾İ
+	// åˆ é™¤äº¤æ¢åŒºæ•°æ®
 	for (int i = 0; i < SWAPAREASIZE; i++)
 	{
 		if (swap_data[i].fileStartAddr == firstStartAddr)
@@ -672,7 +672,7 @@ void deletefileData(int firstStartAddr, int indexBlock)
 			idxs.push_back(idx2);
 		}
 	}
-	// É¾³ıÎÄ¼şÇøÊı¾İ
+	// åˆ é™¤æ–‡ä»¶åŒºæ•°æ®
 	for (int idx : idxs)
 	{
 		file_data[idx].flag = 0;
@@ -681,7 +681,7 @@ void deletefileData(int firstStartAddr, int indexBlock)
 			file_data[idx].data[i] = 0;
 		}
 	}
-	// É¾³ıÎ»Ê¾Í¼Õ¼ÓÃÇé¿ö
+	// åˆ é™¤ä½ç¤ºå›¾å ç”¨æƒ…å†µ
 	for (int idx : idxs)
 	{
 		int row = idx / 30;
@@ -689,7 +689,7 @@ void deletefileData(int firstStartAddr, int indexBlock)
 		bitMap[row][col] = 0;
 	}
 }
-// ´´½¨Ò»¸ö¿ÕÎÄ¼ş
+// åˆ›å»ºä¸€ä¸ªç©ºæ–‡ä»¶
 int createFreeFile()
 {
 	int idx_index = freeAreaIndex();
@@ -742,8 +742,8 @@ SwapWriteData amendFile(FCB fcb, string fileContent)
 	int count = 0;
 	int indexBlockCountNow = 0;
 	int indexBlockCountAgo = 0;
-	int amountNow = 0;								   // ĞŞ¸ÄºóµÄÎÄ¼şÕ¼ÓÃ´ÅÅÌ¿éÊı
-	int amountAgo = fileBlockCount(fcb.fileIndexAddr); // »ñÈ¡Î´ĞŞ¸ÄÇ°µÄÕ¼ÓÃ´ÅÅÌÊı
+	int amountNow = 0;								   // ä¿®æ”¹åçš„æ–‡ä»¶å ç”¨ç£ç›˜å—æ•°
+	int amountAgo = fileBlockCount(fcb.fileIndexAddr); // è·å–æœªä¿®æ”¹å‰çš„å ç”¨ç£ç›˜æ•°
 	if (str_b.size() % BLOCKSIZE == 0)
 		amountNow = str_b.size() / BLOCKSIZE;
 	else
@@ -767,7 +767,7 @@ SwapWriteData amendFile(FCB fcb, string fileContent)
 		swd.IsputDown = 0;
 		swd.fcb.fileSize = str_b.size() / 8;
 	}
-	// É¾³ı½»»»ÇøÎÄ¼ş
+	// åˆ é™¤äº¤æ¢åŒºæ–‡ä»¶
 	deleteAppointSwapAreaFile(fcb.fileStartAddr);
 	SwapInformation si = SwapAreaCount(amountNow);
 	int swapAddr = si.startAddr;
@@ -951,7 +951,7 @@ SwapWriteData amendFile(FCB fcb, string fileContent)
 }
 void format()
 {
-	// ¸ñÊ½»¯Î»Ê¾Í¼
+	// æ ¼å¼åŒ–ä½ç¤ºå›¾
 	for (int i = 0; i < 30; i++)
 	{
 		for (int j = 0; j < 30; j++)
@@ -959,7 +959,7 @@ void format()
 			bitMap[i][j] = 0;
 		}
 	}
-	// ¸ñÊ½»¯ÎÄ¼şÇø
+	// æ ¼å¼åŒ–æ–‡ä»¶åŒº
 	for (int i = 0; i < FILEAREASIZE; i++)
 	{
 		for (int j = 0; j < BLOCKSIZE; j++)
@@ -968,7 +968,7 @@ void format()
 		}
 		file_data[i].flag = 0;
 	}
-	// ¸ñÊ½»¯½»»»Çø
+	// æ ¼å¼åŒ–äº¤æ¢åŒº
 	for (int i = 0; i < SWAPAREASIZE; i++)
 	{
 		for (int j = 0; j < 10; j++)
@@ -985,10 +985,10 @@ void format()
 	}
 }
 
-// Ğ´ÈëÊı¾İ Ò»¸ö¿éÎªµ¥Î»
+// å†™å…¥æ•°æ® ä¸€ä¸ªå—ä¸ºå•ä½
 void putBlockData(PCB pcb, string BlockContent)
 {
-	string str_b = BlockContent; // ´«µÄ¾ÍÊÇ¶ş½øÖÆ×Ö·û´®
+	string str_b = BlockContent; // ä¼ çš„å°±æ˜¯äºŒè¿›åˆ¶å­—ç¬¦ä¸²
 	for (int i = 0; i < MAXFILE * 8; i++)
 		strb[i] = 0;
 	for (int i = 0; i < str_b.size(); i++)
@@ -1085,7 +1085,7 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 
 	if (fileblocknum > blockNum - pageNum)
 	{
-		printf("ÄÚ´æ¿éÊı²»¹»£¬·¢Éú´íÎó");
+		printf("å†…å­˜å—æ•°ä¸å¤Ÿï¼Œå‘ç”Ÿé”™è¯¯");
 
 		return NULL;
 	}
@@ -1095,18 +1095,18 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 		{
 			int existnum = exist(i, f.fileStartAddr);
 			if (existnum != -1)
-			{ // ÄÚ´æÖĞÓĞ¸ÃÒ³ºÅ
+			{ // å†…å­˜ä¸­æœ‰è¯¥é¡µå·
 				b[existnum].stayTime = 0;
 			}
 			else
-			{							 // È±Ò³
-				int space = findspace(); // ÕÒµÚÒ»¸öÄÚ´æ¿ÕÏĞ¿éºÅ
+			{							 // ç¼ºé¡µ
+				int space = findspace(); // æ‰¾ç¬¬ä¸€ä¸ªå†…å­˜ç©ºé—²å—å·
 				pageNum++;
-				// Ìî³äÒ³±íÏî
+				// å¡«å……é¡µè¡¨é¡¹
 				pageTable[i].id = space;
 				pageTable[i].fileStartAddr = f.fileStartAddr;
 				pageTable[i].disk_id = disk_id[i];
-				// ½«Ïà¹ØĞÅÏ¢ÌîÈëb[space]
+				// å°†ç›¸å…³ä¿¡æ¯å¡«å…¥b[space]
 				b[space].pcb = pageTable[i];
 				b[space].pageID = i;
 				b[space].stayTime = 0;
@@ -1119,7 +1119,7 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 				if (j == existnum)
 					continue;
 				if (b[j].pageID != -1)
-					b[j].stayTime++; // Ã¿¿é·Ç¿ÕÏĞÄÚ´æ¿éÊ±ÖÓÊı+1
+					b[j].stayTime++; // æ¯å—éç©ºé—²å†…å­˜å—æ—¶é’Ÿæ•°+1
 			}
 		}
 	}
@@ -1129,18 +1129,18 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 		{
 			int existnum = exist(i, f.fileStartAddr);
 			if (existnum != -1)
-			{ // ÄÚ´æÖĞÓĞ¸ÃÒ³ºÅ
+			{ // å†…å­˜ä¸­æœ‰è¯¥é¡µå·
 				b[existnum].stayTime = 0;
 			}
 			else
-			{							 // È±Ò³
-				int space = findspace(); // ÕÒµÚÒ»¸öÄÚ´æ¿ÕÏĞ¿éºÅ
+			{							 // ç¼ºé¡µ
+				int space = findspace(); // æ‰¾ç¬¬ä¸€ä¸ªå†…å­˜ç©ºé—²å—å·
 				pageNum++;
-				// Ìî³äÒ³±íÏî
+				// å¡«å……é¡µè¡¨é¡¹
 				pageTable[i].id = space;
 				pageTable[i].fileStartAddr = f.fileStartAddr;
 				pageTable[i].disk_id = disk_id[i];
-				// ½«Ïà¹ØĞÅÏ¢ÌîÈëb[space]
+				// å°†ç›¸å…³ä¿¡æ¯å¡«å…¥b[space]
 				b[space].pcb = pageTable[i];
 				b[space].pageID = i;
 				b[space].stayTime = 0;
@@ -1153,27 +1153,27 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 				if (j == existnum)
 					continue;
 				if (b[j].pageID != -1)
-					b[j].stayTime++; // Ã¿¿é·Ç¿ÕÏĞÄÚ´æ¿éÊ±ÖÓÊı+1
+					b[j].stayTime++; // æ¯å—éç©ºé—²å†…å­˜å—æ—¶é’Ÿæ•°+1
 			}
 		}
 		for (int i = 8; i < fileblocknum; i++)
 		{
 			pageNum++;
-			int space = GetLongestStay(); // ·µ»Østaytime×î´óµÄÄÚ´æ¿éºÅ
-			cout << "ÄÚ´æÖĞµÚ" << space << "¿éÖĞ´ÅÅÌ¿éºÅÎª" << b[space].pcb.disk_id << "Ò³ºÅÎª" << b[space].pageID << "µÄÊı¾İ¿é±»»»³ö" << endl;
-			// µ÷ÓÃDiskÖĞµÄº¯Êı½«»»³öÒ³ÃæĞÅÏ¢±£´æµ½Íâ´æ¶Ò»»Çø
-			string swapcontent = ""; // ¶ş½øÖÆ×Ö·û´®
+			int space = GetLongestStay(); // è¿”å›staytimeæœ€å¤§çš„å†…å­˜å—å·
+			cout << "å†…å­˜ä¸­ç¬¬" << space << "å—ä¸­ç£ç›˜å—å·ä¸º" << b[space].pcb.disk_id << "é¡µå·ä¸º" << b[space].pageID << "çš„æ•°æ®å—è¢«æ¢å‡º" << endl;
+			// è°ƒç”¨Diskä¸­çš„å‡½æ•°å°†æ¢å‡ºé¡µé¢ä¿¡æ¯ä¿å­˜åˆ°å¤–å­˜å…‘æ¢åŒº
+			string swapcontent = ""; // äºŒè¿›åˆ¶å­—ç¬¦ä¸²
 			for (int m = 0; m < BLOCKSIZE; m++)
 				swapcontent += std::to_string(b[i].data[m]);
 			PCB swappcb = b[space].pcb;
-			// cout << "»»³öµÄ×Ö·û´®£º"<<swapcontent << endl;
-			putBlockData(swappcb, swapcontent); // ±£´æµ½¶Ò»»Çø
+			// cout << "æ¢å‡ºçš„å­—ç¬¦ä¸²ï¼š"<<swapcontent << endl;
+			putBlockData(swappcb, swapcontent); // ä¿å­˜åˆ°å…‘æ¢åŒº
 
-			// Ìî³äÒ³±íÏî
+			// å¡«å……é¡µè¡¨é¡¹
 			pageTable[i].id = space;
 			pageTable[i].fileStartAddr = f.fileStartAddr;
 			pageTable[i].disk_id = disk_id[i];
-			// ½«Ïà¹ØĞÅÏ¢ÌîÈëb[space]
+			// å°†ç›¸å…³ä¿¡æ¯å¡«å…¥b[space]
 			b[space].pcb = pageTable[i];
 			b[space].pageID = i;
 			b[space].stayTime = 0;
@@ -1185,7 +1185,7 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 				if (j == space)
 					continue;
 				if (b[j].pageID != -1)
-					b[j].stayTime++; // Ã¿¿é·Ç¿ÕÏĞÄÚ´æ¿éÊ±ÖÓÊı+1
+					b[j].stayTime++; // æ¯å—éç©ºé—²å†…å­˜å—æ—¶é’Ÿæ•°+1
 			}
 		}
 	}
@@ -1195,19 +1195,22 @@ PCB *LRUAlloc(FCB f, PCB *pageTable, int disk_id[], bool disk_data[32][320])
 
 void ShowPage()
 {
-	printf("                              *******[64¿éÄÚ´æ¿é±í]*******\n");
+	printf("                              *******[64å—å†…å­˜å—è¡¨]*******\n");
 	int i;
-	// cout << "ÄÚ´æ¿éºÅ    ËùÊôÎÄ¼şÍâ´æ¿éºÅ   Ò³ÃæºÅ   ¶à¾ÃÎ´·ÃÎÊ" << endl;
-	for (i = 0; i < blockNum; i++){
+	// cout << "å†…å­˜å—å·    æ‰€å±æ–‡ä»¶å¤–å­˜å—å·   é¡µé¢å·   å¤šä¹…æœªè®¿é—®" << endl;
+	for (i = 0; i < blockNum; i++)
+	{
 		cout << "Block[" << i << "]: " << i << "  "
 			 << "\tFileStartAddr[" << i << "]: " << b[i].pcb.fileStartAddr << "  "
 			 << "\tPageID[" << i << "]: " << b[i].pageID << "  ";
-			if(i<10){
-				 cout << "\t  Stay[" << i << "]: " << b[i].stayTime << endl;
-			 }
-			else{
-				cout<<"  Stay[" << i << "]: " << b[i].stayTime << endl;
-			}
+		if (i < 10)
+		{
+			cout << "\t  Stay[" << i << "]: " << b[i].stayTime << endl;
+		}
+		else
+		{
+			cout << "  Stay[" << i << "]: " << b[i].stayTime << endl;
+		}
 	}
 }
 
@@ -1259,7 +1262,7 @@ void Delete(FCB f)
 
 PCB *ReadToMemory(SwapReadData f_Information)
 {
-	// cout << "ÎÄ¼şÄÚÈİÊÇ£º " << f_Information.fileContent << endl;
+	// cout << "æ–‡ä»¶å†…å®¹æ˜¯ï¼š " << f_Information.fileContent << endl;
 	FCB f1 = f_Information.fcb;
 	int fileblocknum1 = f1.fileSize / 40;
 	if (f1.fileSize % 40 > 0)
@@ -1272,7 +1275,7 @@ PCB *ReadToMemory(SwapReadData f_Information)
 		for (int j = 0; j < 320; j++)
 			disk_data[i][j] = f_Information.fileData[i][j];
 	PCB *pageTable = InitPCB(fileblocknum1);
-	// ·ÖÅäÄÚ´æ²¢¸üĞÂMCBºÍ¸ÃÎÄ¼şpageTable£¬£¨ÈçĞèÒª£©Íê³ÉÈ«¾ÖLRUÖÃ»»¿é
+	// åˆ†é…å†…å­˜å¹¶æ›´æ–°MCBå’Œè¯¥æ–‡ä»¶pageTableï¼Œï¼ˆå¦‚éœ€è¦ï¼‰å®Œæˆå…¨å±€LRUç½®æ¢å—
 	pageTable = LRUAlloc(f1, pageTable, disk_id, disk_data);
 	return pageTable;
 }
@@ -1280,11 +1283,11 @@ PCB *ReadToMemory(SwapReadData f_Information)
 SwapWriteData WriteToMandD(SwapReadData f_Information)
 {
 
-	// Ö»ĞŞ¸ÄÄÚÈİºÍÎÄ¼ş´óĞ¡
-	printf("ÊäÈëÄãÏëÒªĞ´ÈëµÄÄÚÈİ£º\n");
+	// åªä¿®æ”¹å†…å®¹å’Œæ–‡ä»¶å¤§å°
+	printf("è¾“å…¥ä½ æƒ³è¦å†™å…¥çš„å†…å®¹ï¼š\n");
 	string content;
 	cin >> content;
-	cout << "ĞŞ¸ÄºóÎÄ¼şÄÚÈİÊÇ£º" << content << endl;
+	cout << "ä¿®æ”¹åæ–‡ä»¶å†…å®¹æ˜¯ï¼š" << content << endl;
 	FCB f = f_Information.fcb;
 	// int disk_id[32];
 	// for (int i = 0; i < 32; i++) disk_id[i] = f_Information.fileContent[i];
@@ -1300,14 +1303,14 @@ SwapWriteData WriteToMandD(SwapReadData f_Information)
 	int filesize = length / 8;
 	if (length % 8 > 0)
 		filesize += 1;
-	f.fileSize = filesize; // ¸üĞÂ´óĞ¡
+	f.fileSize = filesize; // æ›´æ–°å¤§å°
 	int fileblocknum1 = f.fileSize / 40;
 	if (f.fileSize % 40 > 0)
 		fileblocknum1 += 1;
 	// PCB* pageTable = InitPCB(fileblocknum1);
-	// ·ÖÅäÄÚ´æ²¢¸üĞÂMCBºÍ¸ÃÎÄ¼şpageTable£¬£¨ÈçĞèÒª£©Íê³ÉÈ«¾ÖLRUÖÃ»»¿é
+	// åˆ†é…å†…å­˜å¹¶æ›´æ–°MCBå’Œè¯¥æ–‡ä»¶pageTableï¼Œï¼ˆå¦‚éœ€è¦ï¼‰å®Œæˆå…¨å±€LRUç½®æ¢å—
 	// pageTable = LRUAlloc(f, pageTable, disk_id, disk_data);
-	// Ğ´ÁËÎÄ¼şÒª°ÑÄÚÈİĞ´»Ø´ÅÅÌ£¡£¡£¡
+	// å†™äº†æ–‡ä»¶è¦æŠŠå†…å®¹å†™å›ç£ç›˜ï¼ï¼ï¼
 	return amendFile(f, content);
 }
 
@@ -1331,17 +1334,17 @@ FCB LinkSwapRFCB(SwapReadData swd, FCB fcb)
 	fcb.fileIndexAddr = fcb0.fileIndexAddr;
 	return fcb;
 }
-// »ñÈ¡´´½¨Ê±¼ä
+// è·å–åˆ›å»ºæ—¶é—´
 string GetNowTime()
 {
 	SYSTEMTIME sys;
 	GetLocalTime(&sys);
-	sys.wYear; // Äê·İ
+	sys.wYear; // å¹´ä»½
 	sys.wMonth;
 	sys.wDay;
 	sys.wHour;
 	sys.wMinute;
-	sys.wSecond; // ÔÂ·İ
+	sys.wSecond; // æœˆä»½
 
 	string times = "";
 	times.append(to_string(sys.wYear)).append("/");
@@ -1355,7 +1358,7 @@ string GetNowTime()
 
 void InitMFD()
 {
-	MFD_Link = (MFD *)new MFD; // ´øÍ·½áµãµÄµ¥ÏòÁ´±í
+	MFD_Link = (MFD *)new MFD; // å¸¦å¤´ç»“ç‚¹çš„å•å‘é“¾è¡¨
 	MFD *p = MFD_Link;
 	p->next = (MFD *)new MFD;
 	p->next->UserName = "user0";
@@ -1372,17 +1375,17 @@ void InitMFD()
 	p = p->next;
 	// p->NextUfd = NULL;
 	p->next = NULL;
-	cout << "³õÊ¼ÓÃ»§user0´´½¨³É¹¦£¡£¨Ä¬ÈÏ³õÊ¼ÃÜÂëÎª123456£©" << endl;
+	cout << "åˆå§‹ç”¨æˆ·user0åˆ›å»ºæˆåŠŸï¼ï¼ˆé»˜è®¤åˆå§‹å¯†ç ä¸º123456ï¼‰" << endl;
 }
 bool DefaultFiles = true;
 void InitFCB()
 {
 	if (FCB_Link)
 	{
-		// cout<<"FCB_LinkÒÑ±»³õÊ¼»¯£¡"<<endl;
+		// cout<<"FCB_Linkå·²è¢«åˆå§‹åŒ–ï¼"<<endl;
 		return;
 	}
-	FCB_Link = (FCB *)new FCB; // ´øÍ·½áµãµÄµ¥ÏòÁ´±í
+	FCB_Link = (FCB *)new FCB; // å¸¦å¤´ç»“ç‚¹çš„å•å‘é“¾è¡¨
 	FCB_Link->next = NULL;
 }
 void InitAFD()
@@ -1395,73 +1398,73 @@ void RenameFile()
 {
 	string FileName;
 	FCB *temp = FCB_Link;
-	cout << "ÇëÊäÈëÒªÖØÃüÃûµÄÎÄ¼şÃû£º";
+	cout << "è¯·è¾“å…¥è¦é‡å‘½åçš„æ–‡ä»¶åï¼š";
 	cin >> FileName;
 	while (temp)
 	{
-		// 	string username;   // ÓÃ»§Ãû
-		//  string fileName;   // ÎÄ¼şÃû
-		//  int fileSize;      // ÎÄ¼ş´óĞ¡
-		//  bool fileNature;   // ÎÄ¼şÊôĞÔ 0 Ö»¶Á 1 ¿É¶Á¿ÉĞ´
-		//  string createTime; // ÎÄ¼ş´´½¨Ê±¼ä
-		//  int fileStartAddr; // ÎÄ¼şÆğÊ¼µØÖ·
-		//  int fileIndexAddr; // ÎÄ¼şË÷ÒıµØÖ·
+		// 	string username;   // ç”¨æˆ·å
+		//  string fileName;   // æ–‡ä»¶å
+		//  int fileSize;      // æ–‡ä»¶å¤§å°
+		//  bool fileNature;   // æ–‡ä»¶å±æ€§ 0 åªè¯» 1 å¯è¯»å¯å†™
+		//  string createTime; // æ–‡ä»¶åˆ›å»ºæ—¶é—´
+		//  int fileStartAddr; // æ–‡ä»¶èµ·å§‹åœ°å€
+		//  int fileIndexAddr; // æ–‡ä»¶ç´¢å¼•åœ°å€
 		//  FCB *next;
 		if (temp->fileName == FileName)
 		{
-			cout << "ÇëÊäÈëĞÂµÄÎÄ¼şÃû£º";
+			cout << "è¯·è¾“å…¥æ–°çš„æ–‡ä»¶åï¼š";
 			cin >> temp->fileName;
-			cout << "ÖØÃüÃû³É¹¦£¡" << endl;
+			cout << "é‡å‘½åæˆåŠŸï¼" << endl;
 			return;
 		}
 		temp = temp->next;
 	}
 	if (!temp)
 	{
-		cout << "¸ÃÓÃ»§Î´´´½¨¸ÃÎÄ¼ş£¬ÇëÏÈ´´½¨ÎÄ¼ş£¡" << endl;
+		cout << "è¯¥ç”¨æˆ·æœªåˆ›å»ºè¯¥æ–‡ä»¶ï¼Œè¯·å…ˆåˆ›å»ºæ–‡ä»¶ï¼" << endl;
 		return;
 	}
 	else
 	{
-		cout << "ÖØÃüÃû³É¹¦£¡" << endl;
+		cout << "é‡å‘½åæˆåŠŸï¼" << endl;
 	}
 }
 void help()
 {
 	cout << "*****************************************************************" << endl;
-	cout << "*\t\tÃüÁî			  ËµÃ÷			*" << endl;
-	cout << "*\t\tadduser			ĞÂ½¨ÓÃ»§		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\trmuser			É¾³ıÓÃ»§		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\tshowuser		ÏÔÊ¾ÓÃ»§		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tlogin			µÇÂ¼ÏµÍ³		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tll		    	ÏÔÊ¾Ä¿Â¼		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\tcreate			´´½¨ÎÄ¼ş		*" << endl; // ´´½¨¿ÕÎÄ¼şĞ´ºÃÁË
-	cout << "*\t\trename			ÖØÃüÎÄ¼ş		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\topen			´ò¿ªÎÄ¼ş		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tread			¶ÁÈ¡ÎÄ¼ş		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\twrite			Ğ´ÈëÎÄ¼ş		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tclose			¹Ø±ÕÎÄ¼ş		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tdelete			É¾³ıÎÄ¼ş		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\tlogout 			×¢ÏúÓÃ»§		*" << endl; // ÒÑÊµÏÖ
-	cout << "*\t\thelp			°ïÖú²Ëµ¥		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tcls 			Çå³ıÆÁÄ»		*" << endl;		// ÒÑÊµÏÖ
-	cout << "*\t\tquit			ÍË³öÏµÍ³		*" << endl;		// ÒÑÊµÏÖ
+	cout << "*\t\tå‘½ä»¤			  è¯´æ˜			*" << endl;
+	cout << "*\t\tadduser			æ–°å»ºç”¨æˆ·		*" << endl; // å·²å®ç°
+	cout << "*\t\trmuser			åˆ é™¤ç”¨æˆ·		*" << endl; // å·²å®ç°
+	cout << "*\t\tshowuser		æ˜¾ç¤ºç”¨æˆ·		*" << endl;		// å·²å®ç°
+	cout << "*\t\tlogin			ç™»å½•ç³»ç»Ÿ		*" << endl;		// å·²å®ç°
+	cout << "*\t\tll		    	æ˜¾ç¤ºç›®å½•		*" << endl; // å·²å®ç°
+	cout << "*\t\tcreate			åˆ›å»ºæ–‡ä»¶		*" << endl; // åˆ›å»ºç©ºæ–‡ä»¶å†™å¥½äº†
+	cout << "*\t\trename			é‡å‘½æ–‡ä»¶		*" << endl; // å·²å®ç°
+	cout << "*\t\topen			æ‰“å¼€æ–‡ä»¶		*" << endl;		// å·²å®ç°
+	cout << "*\t\tread			è¯»å–æ–‡ä»¶		*" << endl;		// å·²å®ç°
+	cout << "*\t\twrite			å†™å…¥æ–‡ä»¶		*" << endl;		// å·²å®ç°
+	cout << "*\t\tclose			å…³é—­æ–‡ä»¶		*" << endl;		// å·²å®ç°
+	cout << "*\t\tdelete			åˆ é™¤æ–‡ä»¶		*" << endl; // å·²å®ç°
+	cout << "*\t\tlogout 			æ³¨é”€ç”¨æˆ·		*" << endl; // å·²å®ç°
+	cout << "*\t\thelp			å¸®åŠ©èœå•		*" << endl;		// å·²å®ç°
+	cout << "*\t\tcls 			æ¸…é™¤å±å¹•		*" << endl;		// å·²å®ç°
+	cout << "*\t\tquit			é€€å‡ºç³»ç»Ÿ		*" << endl;		// å·²å®ç°
 	cout << "*****************************************************************" << endl;
 }
 void System_Init()
 {
 	help();
-	// ³õÊ¼»¯MFD
+	// åˆå§‹åŒ–MFD
 	InitMFD();
 	InitFCB();
-	cout << "´´½¨Íê±Ï" << endl;
+	cout << "åˆ›å»ºå®Œæ¯•" << endl;
 }
 void ShowUsers()
 {
 	MFD *temp = MFD_Link->next;
-	cout << "µ±Ç°ÓÃ»§ÁĞ±í£º" << endl;
+	cout << "å½“å‰ç”¨æˆ·åˆ—è¡¨ï¼š" << endl;
 	cout << "\tID"
-		 << "\tÓÃ»§Ãû" << endl;
+		 << "\tç”¨æˆ·å" << endl;
 	while (temp)
 	{
 		cout << "\t" << temp->id << "\t" << temp->UserName << endl;
@@ -1474,9 +1477,9 @@ void add_user()
 	string PassWord;
 	char UserPassword[20];
 	MFD *temp = MFD_Link;
-	cout << "ÇëÊäÈëÓÃ»§Ãû£º";
+	cout << "è¯·è¾“å…¥ç”¨æˆ·åï¼š";
 	cin >> UserName;
-	cout << "ÇëÊäÈëÓÃ»§" << UserName << "µÄÃÜÂë£º";
+	cout << "è¯·è¾“å…¥ç”¨æˆ·" << UserName << "çš„å¯†ç ï¼š";
 	char ch;
 	int p = 0;
 	while ((ch = _getch()) != '\r')
@@ -1485,7 +1488,7 @@ void add_user()
 		{
 			if (p > 0)
 			{
-				putchar('\b'); // Ìæ»»*×Ö·û
+				putchar('\b'); // æ›¿æ¢*å­—ç¬¦
 				putchar(' ');
 				putchar('\b');
 				p--;
@@ -1499,7 +1502,7 @@ void add_user()
 		}
 		else
 		{
-			putchar('*'); // ÔÚÆÁÄ»ÉÏ´òÓ¡ĞÇºÅ
+			putchar('*'); // åœ¨å±å¹•ä¸Šæ‰“å°æ˜Ÿå·
 		}
 		UserPassword[p++] = ch;
 	}
@@ -1509,7 +1512,7 @@ void add_user()
 	{
 		if (temp->UserName == UserName)
 		{
-			cout << "ÓÃ»§ÒÑ´æÔÚ£¡" << endl;
+			cout << "ç”¨æˆ·å·²å­˜åœ¨ï¼" << endl;
 			return;
 		}
 		if (!temp->next)
@@ -1534,13 +1537,13 @@ void add_user()
 	temp->next = NULL;
 	// temp->NextUfd = NULL;
 	cout << endl
-		 << "ÓÃ»§" << UserName << "´´½¨³É¹¦£¡" << endl;
+		 << "ç”¨æˆ·" << UserName << "åˆ›å»ºæˆåŠŸï¼" << endl;
 	// ShowUsers();
 }
 void rmuser()
 {
 	string UserName;
-	cout << "ÇëÊäÈëÒªÉ¾³ıµÄÓÃ»§Ãû£º";
+	cout << "è¯·è¾“å…¥è¦åˆ é™¤çš„ç”¨æˆ·åï¼š";
 	cin >> UserName;
 	MFD *temp = MFD_Link;
 	MFD *temp1 = MFD_Link->next;
@@ -1550,14 +1553,14 @@ void rmuser()
 		{
 			char password[20];
 			string Password;
-			cout << "ÇëÊäÈëÓÃ»§" << UserName << "µÄÃÜÂë£º";
+			cout << "è¯·è¾“å…¥ç”¨æˆ·" << UserName << "çš„å¯†ç ï¼š";
 			for (int j = 3; j > 0; j++)
 			{
 				char ch;
 				int p = 0;
 				if (j == 1)
 				{
-					cout << "ÃÜÂë´íÎó£¬ÓÃ»§É¾³ıÊ§°Ü£¡" << endl;
+					cout << "å¯†ç é”™è¯¯ï¼Œç”¨æˆ·åˆ é™¤å¤±è´¥ï¼" << endl;
 					return;
 				}
 				while ((ch = _getch()) != '\r')
@@ -1566,7 +1569,7 @@ void rmuser()
 					{
 						if (p > 0)
 						{
-							putchar('\b'); // Ìæ»»*×Ö·û
+							putchar('\b'); // æ›¿æ¢*å­—ç¬¦
 							putchar(' ');
 							putchar('\b');
 							p--;
@@ -1580,7 +1583,7 @@ void rmuser()
 					}
 					else
 					{
-						putchar('*'); // ÔÚÆÁÄ»ÉÏ´òÓ¡ĞÇºÅ
+						putchar('*'); // åœ¨å±å¹•ä¸Šæ‰“å°æ˜Ÿå·
 					}
 					password[p++] = ch;
 				}
@@ -1593,30 +1596,30 @@ void rmuser()
 				else
 				{
 					cout << endl
-						 << "ÃÜÂë´íÎó£¡»¹ÓĞ" << j - 1 << "´Î»ú»á£¡" << endl;
+						 << "å¯†ç é”™è¯¯ï¼è¿˜æœ‰" << j - 1 << "æ¬¡æœºä¼šï¼" << endl;
 				}
 			}
 			temp->next = temp1->next;
 			UserId[temp1->id] = 0;
 			delete temp1;
 			cout << endl
-				 << "ÓÃ»§" << UserName << "É¾³ı³É¹¦£¡" << endl;
+				 << "ç”¨æˆ·" << UserName << "åˆ é™¤æˆåŠŸï¼" << endl;
 			return;
 		}
 		temp = temp1;
 		temp1 = temp1->next;
 	}
-	cout << "ÓÃ»§" << UserName << "²»´æÔÚ£¡" << endl;
+	cout << "ç”¨æˆ·" << UserName << "ä¸å­˜åœ¨ï¼" << endl;
 };
 void login()
 {
 	if (UserName != "")
 	{
-		cout << "ÓÃ»§" << UserName << "ÒÑµÇÂ¼£¡Çë×¢ÏúÓÃ»§ºóµÇÂ¼" << endl;
+		cout << "ç”¨æˆ·" << UserName << "å·²ç™»å½•ï¼è¯·æ³¨é”€ç”¨æˆ·åç™»å½•" << endl;
 		return;
 	}
 	string UserName0;
-	cout << "ÇëÊäÈëÓÃ»§Ãû£º";
+	cout << "è¯·è¾“å…¥ç”¨æˆ·åï¼š";
 	cin >> UserName0;
 	MFD *temp = MFD_Link->next;
 	while (temp)
@@ -1625,14 +1628,14 @@ void login()
 		{
 			char password[20];
 			string Password;
-			cout << "ÇëÊäÈëÓÃ»§" << UserName0 << "µÄÃÜÂë£º";
+			cout << "è¯·è¾“å…¥ç”¨æˆ·" << UserName0 << "çš„å¯†ç ï¼š";
 			for (int j = 3; j > 0; j++)
 			{
 				char ch;
 				int p = 0;
 				if (j == 1)
 				{
-					cout << "ÃÜÂë´íÎó£¬ÓÃ»§µÇÂ¼Ê§°Ü£¡" << endl;
+					cout << "å¯†ç é”™è¯¯ï¼Œç”¨æˆ·ç™»å½•å¤±è´¥ï¼" << endl;
 					return;
 				}
 				while ((ch = _getch()) != '\r')
@@ -1641,7 +1644,7 @@ void login()
 					{
 						if (p > 0)
 						{
-							putchar('\b'); // Ìæ»»*×Ö·û
+							putchar('\b'); // æ›¿æ¢*å­—ç¬¦
 							putchar(' ');
 							putchar('\b');
 							p--;
@@ -1655,7 +1658,7 @@ void login()
 					}
 					else
 					{
-						putchar('*'); // ÔÚÆÁÄ»ÉÏ´òÓ¡ĞÇºÅ
+						putchar('*'); // åœ¨å±å¹•ä¸Šæ‰“å°æ˜Ÿå·
 					}
 					password[p++] = ch;
 				}
@@ -1668,32 +1671,32 @@ void login()
 				else
 				{
 					cout << endl
-						 << "ÃÜÂë´íÎó£¡»¹ÓĞ" << j - 1 << "´Î»ú»á£¡" << endl;
+						 << "å¯†ç é”™è¯¯ï¼è¿˜æœ‰" << j - 1 << "æ¬¡æœºä¼šï¼" << endl;
 				}
 			}
 			cout << endl
-				 << "ÓÃ»§" << UserName << "µÇÂ¼³É¹¦£¡" << endl;
+				 << "ç”¨æˆ·" << UserName << "ç™»å½•æˆåŠŸï¼" << endl;
 			UserName = UserName0;
 			return;
 		}
 		temp = temp->next;
 	}
-	cout << "ÓÃ»§" << UserName0 << "²»´æÔÚ£¡" << endl;
+	cout << "ç”¨æˆ·" << UserName0 << "ä¸å­˜åœ¨ï¼" << endl;
 }
 void create()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
 	{
 		string FileName;
 		FCB *p = FCB_Link;
-		cout << "ÇëÊäÈëÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥æ–‡ä»¶åï¼š";
 		cin >> FileName;
-		cout << "ÇëÊäÈëÈ¨ÏŞ£¨0±íÊ¾Ö»¶Á£¬1±íÊ¾¿É¶Á¿ÉĞ´£©£º";
+		cout << "è¯·è¾“å…¥æƒé™ï¼ˆ0è¡¨ç¤ºåªè¯»ï¼Œ1è¡¨ç¤ºå¯è¯»å¯å†™ï¼‰ï¼š";
 		int mode;
 		cin >> mode;
 		while (p->next)
@@ -1701,14 +1704,14 @@ void create()
 
 			if (p->next->fileName == FileName && p->next->username == UserName)
 			{
-				cout << "ÎÄ¼ş" << FileName << "ÒÑ´æÔÚ£¡" << endl;
+				cout << "æ–‡ä»¶" << FileName << "å·²å­˜åœ¨ï¼" << endl;
 				return;
 			}
 			p = p->next;
 		}
-		// int fileSize;      // ÎÄ¼ş´óĞ¡
-		// int fileStartAddr; // ÎÄ¼şÆğÊ¼µØÖ·
-		// int fileIndexAddr; // ÎÄ¼şË÷ÒıµØÖ·
+		// int fileSize;      // æ–‡ä»¶å¤§å°
+		// int fileStartAddr; // æ–‡ä»¶èµ·å§‹åœ°å€
+		// int fileIndexAddr; // æ–‡ä»¶ç´¢å¼•åœ°å€
 		FCB *temp = (FCB *)new FCB;
 		temp->fileName = FileName;
 		temp->username = UserName;
@@ -1720,14 +1723,14 @@ void create()
 		temp->fileNature = (bool)mode;
 		temp->next = NULL;
 		p->next = temp;
-		cout << "ÎÄ¼ş" << FileName << "´´½¨³É¹¦£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "åˆ›å»ºæˆåŠŸï¼" << endl;
 	}
 }
 void PrintFCB()
 { // ls
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	FCB *p = FCB_Link->next;
@@ -1743,10 +1746,10 @@ void PrintFCB()
 	}
 	if (!p || is_empty)
 	{
-		cout << "¸ÃÓÃ»§Î´´´½¨ÈÎºÎÎÄ¼ş£¬ÇëÏÈ´´½¨ÎÄ¼ş£¡" << endl;
+		cout << "è¯¥ç”¨æˆ·æœªåˆ›å»ºä»»ä½•æ–‡ä»¶ï¼Œè¯·å…ˆåˆ›å»ºæ–‡ä»¶ï¼" << endl;
 		return;
 	}
-	cout << "ÎÄ¼şÃû\t\tÎÄ¼şÈ¨ÏŞ\tÎÄ¼ş´óĞ¡\tÆğÊ¼µØÖ·\tË÷ÒıµØÖ·\t´´½¨Ê±¼ä" << endl;
+	cout << "æ–‡ä»¶å\t\tæ–‡ä»¶æƒé™\tæ–‡ä»¶å¤§å°\tèµ·å§‹åœ°å€\tç´¢å¼•åœ°å€\tåˆ›å»ºæ—¶é—´" << endl;
 	while (p)
 	{
 		if (p->username == UserName)
@@ -1754,16 +1757,16 @@ void PrintFCB()
 			cout << p->fileName;
 			if (!p->fileNature)
 			{
-				cout << "\t\tÖ»¶Á";
+				cout << "\t\tåªè¯»";
 			}
 			else
 			{
-				cout << "\t\t¿É¶ÁĞ´";
+				cout << "\t\tå¯è¯»å†™";
 			}
 			cout << "\t\t" << p->fileSize;
 			if (p->fileStartAddr == 0)
 			{
-				cout << "\t\t¡ª¡ª¡ª¡ª";
+				cout << "\t\tâ€”â€”â€”â€”";
 			}
 			else
 			{
@@ -1778,45 +1781,45 @@ void rename()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
 	{
 		string FileName;
 		FCB *p = FCB_Link;
-		cout << "ÇëÊäÈëÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		while (p->next)
 		{
 			if (p->next->fileName == FileName && p->next->username == UserName)
 			{
-				cout << "ÇëÊäÈëĞÂÎÄ¼şÃû£º";
+				cout << "è¯·è¾“å…¥æ–°æ–‡ä»¶åï¼š";
 				cin >> FileName;
 				FCB *q = FCB_Link;
 				while (q->next)
 				{
 					if (q->next->fileName == FileName && q->next->username == UserName)
 					{
-						cout << "ÎÄ¼ş" << FileName << "ÒÑ´æÔÚ£¡" << endl;
+						cout << "æ–‡ä»¶" << FileName << "å·²å­˜åœ¨ï¼" << endl;
 						return;
 					}
 					q = q->next;
 				}
 				p->next->fileName = FileName;
-				cout << "ÎÄ¼şÖØÃüÃû³É¹¦£¡" << endl;
+				cout << "æ–‡ä»¶é‡å‘½åæˆåŠŸï¼" << endl;
 				return;
 			}
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "²»´æÔÚ£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "ä¸å­˜åœ¨ï¼" << endl;
 	}
 }
 void read()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
@@ -1824,7 +1827,7 @@ void read()
 		string FileName;
 		AFD *p = AFD_Link;
 		FCB *q = FCB_Link;
-		cout << "ÇëÊäÈëÒª¶ÁÈ¡µÄÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥è¦è¯»å–çš„æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		while (p->next)
 		{
@@ -1840,21 +1843,21 @@ void read()
 				}
 				SwapReadData temp = getfileData(*(q->next));
 				*(q->next) = LinkSwapRFCB(temp, *(q->next));
-				cout << "ÎÄ¼ş" << FileName << "µÄÄÚÈİÎª";
+				cout << "æ–‡ä»¶" << FileName << "çš„å†…å®¹ä¸º";
 				if (temp.fileContent == "")
 				{
-					cout << "¿Õ£¡" << endl;
+					cout << "ç©ºï¼" << endl;
 					return;
 				}
 				else
 				{
-					cout << "£º" << temp.fileContent << endl;
+					cout << "ï¼š" << temp.fileContent << endl;
 					return;
 				}
 			}
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "Î´´ò¿ª£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "æœªæ‰“å¼€ï¼" << endl;
 		return;
 	}
 }
@@ -1875,15 +1878,15 @@ bool read(string FileName)
 				q = q->next;
 			}
 			SwapReadData temp = getfileData(*(q->next));
-			cout << "ÎÄ¼ş" << FileName << "µÄÄÚÈİÎª";
+			cout << "æ–‡ä»¶" << FileName << "çš„å†…å®¹ä¸º";
 			if (temp.fileContent == "")
 			{
-				cout << "¿Õ£¡" << endl;
+				cout << "ç©ºï¼" << endl;
 				return true;
 			}
 			else
 			{
-				cout << "£º" << temp.fileContent << endl;
+				cout << "ï¼š" << temp.fileContent << endl;
 				return false;
 			}
 		}
@@ -1895,7 +1898,7 @@ void open()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
@@ -1903,7 +1906,7 @@ void open()
 		string FileName;
 		FCB *p = FCB_Link->next;
 		AFD *q = AFD_Link;
-		cout << "ÇëÊäÈëÒª´ò¿ªµÄÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥è¦æ‰“å¼€çš„æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		bool Mode;
 		while (p)
@@ -1914,7 +1917,7 @@ void open()
 				{
 					if (q->next->FileName == FileName)
 					{
-						cout << "ÎÄ¼ş" << FileName << "ÒÑ¾­´ò¿ª£¡" << endl;
+						cout << "æ–‡ä»¶" << FileName << "å·²ç»æ‰“å¼€ï¼" << endl;
 						read(FileName);
 						return;
 					}
@@ -1924,11 +1927,11 @@ void open()
 					}
 					q = q->next;
 				}
-				cout << "ÇëÑ¡ÔñÒÔºÎÖÖ·½Ê½´ò¿ªÎÄ¼ş£¨0±íÊ¾Ö»¶Á£¬1±íÊ¾¿É¶Á¿ÉĞ´£©£º";
+				cout << "è¯·é€‰æ‹©ä»¥ä½•ç§æ–¹å¼æ‰“å¼€æ–‡ä»¶ï¼ˆ0è¡¨ç¤ºåªè¯»ï¼Œ1è¡¨ç¤ºå¯è¯»å¯å†™ï¼‰ï¼š";
 				cin >> Mode;
 				if (Mode == true && p->fileNature == false)
 				{
-					cout << "ÎÄ¼ş" << FileName << "ÎªÖ»¶ÁÎÄ¼ş£¬ÎŞ·¨ÒÔ¿É¶Á¿ÉĞ´·½Ê½´ò¿ª£¡" << endl;
+					cout << "æ–‡ä»¶" << FileName << "ä¸ºåªè¯»æ–‡ä»¶ï¼Œæ— æ³•ä»¥å¯è¯»å¯å†™æ–¹å¼æ‰“å¼€ï¼" << endl;
 					return;
 				}
 				SwapReadData srd = getfileData(*p);
@@ -1944,19 +1947,19 @@ void open()
 				{
 					return;
 				};
-				PCB *pageTable0 = ReadToMemory(srd); // ¶Áµ½ÄÚ´æÀï
-				ShowPage();							 // Õ¹Ê¾ÄÚ´æ¿é±í
-				free(pageTable0);					 // ÊÍ·ÅÒ³±í
+				PCB *pageTable0 = ReadToMemory(srd); // è¯»åˆ°å†…å­˜é‡Œ
+				ShowPage();							 // å±•ç¤ºå†…å­˜å—è¡¨
+				free(pageTable0);					 // é‡Šæ”¾é¡µè¡¨
 				return;
 			}
 			// else if (p->fileName == FileName && p->username != UserName)
 			// {
-			// 	cout << "ÎÄ¼ş" << FileName << "²»ÊÇ¸ÃÓÃ»§´´½¨£¬ÎŞ·¨´ò¿ª£¡" << endl;
+			// 	cout << "æ–‡ä»¶" << FileName << "ä¸æ˜¯è¯¥ç”¨æˆ·åˆ›å»ºï¼Œæ— æ³•æ‰“å¼€ï¼" << endl;
 			// 	return;
 			// }
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "²»´æÔÚ£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "ä¸å­˜åœ¨ï¼" << endl;
 		return;
 	}
 }
@@ -1964,7 +1967,7 @@ void write()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
@@ -1972,7 +1975,7 @@ void write()
 		string FileName;
 		FCB *p = FCB_Link->next;
 		AFD *q = AFD_Link;
-		cout << "ÇëÊäÈëÒªĞ´ÈëµÄÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥è¦å†™å…¥çš„æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		while (p)
 		{
@@ -1984,12 +1987,12 @@ void write()
 					{
 						if (q->next->mode == false)
 						{
-							cout << "ÎÄ¼ş" << FileName << "ÒÔÖ»¶ÁĞÎÊ½´ò¿ª£¬ÎŞ·¨Ğ´Èë£¡" << endl;
+							cout << "æ–‡ä»¶" << FileName << "ä»¥åªè¯»å½¢å¼æ‰“å¼€ï¼Œæ— æ³•å†™å…¥ï¼" << endl;
 							return;
 						}
 						else
 						{
-							cout << "ÇëÊäÈëÒªĞ´ÈëµÄÄÚÈİ£º";
+							cout << "è¯·è¾“å…¥è¦å†™å…¥çš„å†…å®¹ï¼š";
 							string content;
 							cin >> content;
 							SwapReadData srd = getfileData(*p);
@@ -1998,7 +2001,7 @@ void write()
 							*p = LinkSwapWFCB(swd, *p);
 							SwapWriteData swd2 = amendFile(*p, content);
 							*p = LinkSwapWFCB(swd, *p);
-							cout << "ÎÄ¼ş" << FileName << "Ğ´Èë³É¹¦£¡" << endl;
+							cout << "æ–‡ä»¶" << FileName << "å†™å…¥æˆåŠŸï¼" << endl;
 							return;
 						}
 					}
@@ -2008,17 +2011,17 @@ void write()
 					}
 					q = q->next;
 				}
-				cout << "ÎÄ¼ş" << FileName << "Î´´ò¿ª£¬ÎŞ·¨Ğ´Èë£¡" << endl;
+				cout << "æ–‡ä»¶" << FileName << "æœªæ‰“å¼€ï¼Œæ— æ³•å†™å…¥ï¼" << endl;
 				return;
 			}
 			// else if (p->fileName == FileName && p->username != UserName)
 			// {
-			// 	cout << "ÎÄ¼ş" << FileName << "²»ÊÇ¸ÃÓÃ»§´´½¨£¬ÎŞ·¨Ğ´Èë£¡" << endl;
+			// 	cout << "æ–‡ä»¶" << FileName << "ä¸æ˜¯è¯¥ç”¨æˆ·åˆ›å»ºï¼Œæ— æ³•å†™å…¥ï¼" << endl;
 			// 	return;
 			// }
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "²»´æÔÚ£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "ä¸å­˜åœ¨ï¼" << endl;
 		return;
 	}
 }
@@ -2026,7 +2029,7 @@ void close()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
@@ -2034,7 +2037,7 @@ void close()
 		string FileName;
 		AFD *p = AFD_Link;
 		FCB *r = FCB_Link->next;
-		cout << "ÇëÊäÈëÒª¹Ø±ÕµÄÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥è¦å…³é—­çš„æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		while (p->next)
 		{
@@ -2046,19 +2049,19 @@ void close()
 					{
 						break;
 					}
-					r = r->next; // *r¾ÍÊÇÒª¹Ø±ÕÎÄ¼şµÄFCB
+					r = r->next; // *rå°±æ˜¯è¦å…³é—­æ–‡ä»¶çš„FCB
 				}
 				AFD *q = p->next;
 				p->next = q->next;
 				delete q;
-				Delete(*r); // µ÷³öÄÚ´æµÄ²»¹éÎÒ¹Ü£¨¹·Í·£©
+				Delete(*r); // è°ƒå‡ºå†…å­˜çš„ä¸å½’æˆ‘ç®¡ï¼ˆç‹—å¤´ï¼‰
 				ShowPage();
-				cout << "ÎÄ¼ş" << FileName << "¹Ø±Õ³É¹¦£¡" << endl;
+				cout << "æ–‡ä»¶" << FileName << "å…³é—­æˆåŠŸï¼" << endl;
 				return;
 			}
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "Î´´ò¿ª£¬ÎŞ·¨¹Ø±Õ£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "æœªæ‰“å¼€ï¼Œæ— æ³•å…³é—­ï¼" << endl;
 		return;
 	}
 }
@@ -2066,21 +2069,21 @@ void rm()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else
 	{
 		string FileName;
 		FCB *p = FCB_Link;
-		cout << "ÇëÊäÈëÒªÉ¾³ıµÄÎÄ¼şÃû£º";
+		cout << "è¯·è¾“å…¥è¦åˆ é™¤çš„æ–‡ä»¶åï¼š";
 		cin >> FileName;
 		AFD *q = AFD_Link;
 		while (q->next)
 		{
 			if (q->next->FileName == FileName)
 			{
-				cout << "ÎÄ¼ş" << FileName << "ÒÑ´ò¿ª£¬ÎŞ·¨É¾³ı£¡" << endl;
+				cout << "æ–‡ä»¶" << FileName << "å·²æ‰“å¼€ï¼Œæ— æ³•åˆ é™¤ï¼" << endl;
 				return;
 			}
 			q = q->next;
@@ -2093,17 +2096,17 @@ void rm()
 				p->next = q->next;
 				deletefileData(q->fileStartAddr, q->fileIndexAddr);
 				delete q;
-				cout << "ÎÄ¼ş" << FileName << "É¾³ı³É¹¦£¡" << endl;
+				cout << "æ–‡ä»¶" << FileName << "åˆ é™¤æˆåŠŸï¼" << endl;
 				return;
 			}
 			// else if (p->next->fileName == FileName && p->next->username != UserName)
 			// {
-			// 	cout << "ÎÄ¼ş" << FileName << "²»ÊÇ¸ÃÓÃ»§´´½¨£¬ÎŞ·¨É¾³ı£¡" << endl;
+			// 	cout << "æ–‡ä»¶" << FileName << "ä¸æ˜¯è¯¥ç”¨æˆ·åˆ›å»ºï¼Œæ— æ³•åˆ é™¤ï¼" << endl;
 			// 	return;
 			// }
 			p = p->next;
 		}
-		cout << "ÎÄ¼ş" << FileName << "²»´æÔÚ£¡" << endl;
+		cout << "æ–‡ä»¶" << FileName << "ä¸å­˜åœ¨ï¼" << endl;
 		return;
 	}
 }
@@ -2111,31 +2114,31 @@ void logout()
 {
 	if (UserName == "")
 	{
-		cout << "ÇëÏÈµÇÂ¼£¡" << endl;
+		cout << "è¯·å…ˆç™»å½•ï¼" << endl;
 		return;
 	}
 	else if (AFD_Link->next != NULL)
 	{
-		cout << "ÇëÏÈ¹Ø±ÕËùÓĞÎÄ¼ş£¡" << endl;
+		cout << "è¯·å…ˆå…³é—­æ‰€æœ‰æ–‡ä»¶ï¼" << endl;
 		return;
 	}
 	else
 	{
 		UserName = "";
-		cout << "×¢Ïú³É¹¦£¡" << endl;
+		cout << "æ³¨é”€æˆåŠŸï¼" << endl;
 		return;
 	}
 }
 void PrintAFD()
 {
-	cout << "ÓÃ»§" << UserName << "µÄÎÄ¼ş´ò¿ª±íÈçÏÂ£º" << endl;
+	cout << "ç”¨æˆ·" << UserName << "çš„æ–‡ä»¶æ‰“å¼€è¡¨å¦‚ä¸‹ï¼š" << endl;
 	AFD *q = AFD_Link;
 	if (q->next == NULL)
 	{
-		cout << "ÎÄ¼ş´ò¿ª±íÎª¿Õ£¡" << endl;
+		cout << "æ–‡ä»¶æ‰“å¼€è¡¨ä¸ºç©ºï¼" << endl;
 		return;
 	}
-	cout << "ÎÄ¼şÃû\t\tÎÄ¼ş³¤¶È\tÎÄ¼şÆğÊ¼ÅÌ¿é\tÎÄ¼ş´ò¿ª·½Ê½" << endl;
+	cout << "æ–‡ä»¶å\t\tæ–‡ä»¶é•¿åº¦\tæ–‡ä»¶èµ·å§‹ç›˜å—\tæ–‡ä»¶æ‰“å¼€æ–¹å¼" << endl;
 	// string FileName;
 	// int FileLength;
 	// int Start;
@@ -2147,7 +2150,7 @@ void PrintAFD()
 		cout << q->FileName << "\t\t" << q->FileLength;
 		if (!q->Start)
 		{
-			cout << "\t\t¡ª¡ª¡ª¡ª";
+			cout << "\t\tâ€”â€”â€”â€”";
 		}
 		else
 		{
@@ -2155,11 +2158,11 @@ void PrintAFD()
 		}
 		if (q->mode == true)
 		{
-			cout << "\t\t¿É¶Á¿ÉĞ´" << endl;
+			cout << "\t\tå¯è¯»å¯å†™" << endl;
 		}
 		else
 		{
-			cout << "\t\tÖ»¶Á" << endl;
+			cout << "\t\tåªè¯»" << endl;
 		}
 	}
 }
@@ -2238,7 +2241,7 @@ void FileSystem()
 		}
 		else
 		{
-			cout << "ÃüÁî´íÎó£¡ÇëÖØĞÂÊäÈë" << endl;
+			cout << "å‘½ä»¤é”™è¯¯ï¼è¯·é‡æ–°è¾“å…¥" << endl;
 		}
 	}
 }
@@ -2246,7 +2249,7 @@ void FileSystem()
 int main()
 {
 	format();
-	InitMCB(); // ³õÊ¼»¯64¸öÄÚ´æ¿é
+	InitMCB(); // åˆå§‹åŒ–64ä¸ªå†…å­˜å—
 
 	FCB fcb;
 	InitFCB();
