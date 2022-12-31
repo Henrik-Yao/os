@@ -8,13 +8,13 @@ using namespace std;
 class ReadWriteLock
 {
 private:
-	int readWaiting = 0;  // 等待读
-	int writeWaiting = 0; // 等待写
-	int reading = 0;	  // 正在读
-	int writing = 0;	  // 正在写
-	std::mutex mx;
-	std::condition_variable cond;
-	bool preferWriter; // 偏向读
+	int readWaiting = 0;		  // 等待读
+	int writeWaiting = 0;		  // 等待写
+	int reading = 0;			  // 正在读
+	int writing = 0;			  // 正在写
+	std::mutex mx;				  // 互斥锁
+	std::condition_variable cond; // 条件变量
+	bool preferWriter;			  // 偏向读
 public:
 	ReadWriteLock(bool isPreferWriter = false) : preferWriter(isPreferWriter) {}
 
