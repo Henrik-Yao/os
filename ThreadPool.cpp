@@ -6,7 +6,7 @@
 #include <iostream>
 
 using namespace std;
-using namespace std::literals::chrono_literals;
+using namespace literals::chrono_literals;
 using callback = void (*)(void *);
 
 const int NUMBER = 2;
@@ -180,7 +180,7 @@ void ThreadPool::worker(void *arg)
         // 判断线程池是否关闭了
         if (pool->shutdown)
         {
-            cout << "threadid: " << std::this_thread::get_id() << "exit......" << endl;
+            cout << "threadid: " << this_thread::get_id() << "exit......" << endl;
             return;
         }
 
@@ -192,13 +192,13 @@ void ThreadPool::worker(void *arg)
         lk.unlock();
 
         // 取出Task任务后，就可以在当前线程中执行该任务了
-        cout << "thread: " << std::this_thread::get_id() << " start working..." << endl;
+        cout << "thread: " << this_thread::get_id() << " start working..." << endl;
         task.function(task.arg);
         free(task.arg);
         task.arg = nullptr;
 
         // 任务执行完毕，忙线程解锁
-        cout << "thread: " << std::this_thread::get_id() << " end working..." << endl;
+        cout << "thread: " << this_thread::get_id() << " end working..." << endl;
         lk.lock();
         pool->busyNum--;
         lk.unlock();
@@ -213,7 +213,7 @@ void ThreadPool::manager(void *arg)
     while (!pool->shutdown)
     {
         // 每隔3秒检测一次
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        this_thread::sleep_for(chrono::seconds(3));
 
         // 取出线程池中任务的数量和当前线程的数量，别的线程有可能在写数据，所以需要加锁
         // 目的是添加或者销毁线程
@@ -265,27 +265,25 @@ void ThreadPool::manager(void *arg)
 void taskFunc(void *arg)
 {
     int nNum = *(int *)arg;
-    cout << "thread: " << std::this_thread::get_id() << ", number=" << nNum << endl;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    cout << "thread: " << this_thread::get_id() << ", number=" << nNum << endl;
+    this_thread::sleep_for(chrono::seconds(1));
 }
 
-void taskFunc2(void *arg)
+void Func(void *arg)
 {
-    cout << "thread: " << std::this_thread::get_id() << "创建文件" << endl;
+    ThreadPool *pool = static_cast<ThreadPool *>(arg);
+    // 往任务队列中添加10个任务
+    for (int i = 0; i < 10; ++i)
+    {
+        int *pNum = new int(i + 100);
+        pool->Add(taskFunc, (void *)pNum);
+    }
 }
-
 int main()
 {
     // 设置线程池最小5个线程，最大10个线程
     ThreadPool pool(5, 10);
-    int i;
-    // 往任务队列中添加10个任务
-    for (i = 0; i < 10; ++i)
-    {
-        int *pNum = new int(i + 100);
-        pool.Add(taskFunc, (void *)pNum);
-        pool.Add(taskFunc2);
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    Func(&pool);
+    this_thread::sleep_for(chrono::seconds(10));
     return 0;
 }
